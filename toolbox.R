@@ -95,22 +95,6 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
 }
 
 
-
-
-
-
-
-
-Rscript /media/CurrentProjects/Mangrove2016/ data_prep.R /media/CurrentProjects/Mangrove2016/16S/16S.otus.count /media/CurrentProjects/Mangrove2016/16S/16S.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.an.unique_list.0.03.cons.taxonomy /media/CurrentProjects/Mangrove2016/16S/metadata 0.33 /media/CurrentProjects/Mangrove2016/16S/results
-
-
-
-
-
-
-
-
-
 ###
 ###
 # Geting sourcing paths
