@@ -18,8 +18,9 @@ packages <- function(requirements){
   has   <- requirements %in% rownames(installed.packages())
   if(any(!has)){
     message("Installing packages...")
-    setRepositories(ind=1:8)
-    install.packages(requirements[!has])
+    setRepositories(ind=1:10)
+    #options(install.packages.check.source = "no")
+    install.packages(requirements[!has],repos="https://cran.uni-muenster.de/")
   }
   lapply(requirements, require, character.only = TRUE)
 }
@@ -28,7 +29,9 @@ numDFtranspose <- function(df){
   x <- t(df)
   colnames(x) <- x[1,]
   x <- x[-1,]
+  rowid <- rownames(x)
   z <- as.data.frame(apply(x, 2, as.numeric))
+  rownames(z) <- rowid
   return(z)
 }
 
@@ -41,16 +44,17 @@ mothur.taxonomy <- function(taxonomy){
   rownames(df) <- df[,1]
   return(df)
 }
+
 mothur.counts <- function(counts){
   counts$X <- NULL
   counts <- counts[,-c(1,3)]
   colnames(counts)[1] <- "id"
   df <- numDFtranspose(counts)
-  rownames(df) <- rownames(df)
   return(df)
 }
 mothur.metadata <- function(metadata){
-  rownames(metadata) <- metadata[,1]
+  if (is.na(table(duplicated(metadata[,1]))["TRUE"])){row.names(metadata) <- metadata[,1]
+  } else {rownames(df) <- make.names(metadata[,1], unique=TRUE)}
   return(metadata)
 }
 ## Gives count, mean, standard deviation, standard error of the mean, and confidence interval (default 95%).
