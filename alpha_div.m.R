@@ -64,7 +64,7 @@ shplot <- ggplot(index,aes(x=factor(index[[assocvar]]),y=shannon)) +
   theme(axis.text.x  = element_text(angle=0, vjust=0.5, size=12),
         panel.grid.minor=element_blank(),panel.grid.major=element_blank(),
         plot.title = element_text(lineheight=.12, face="bold"))
-ggsave('shannon.pdf',plot=shplot,path=o,width=10,height=8)
+ggsave(paste('shannon.',assocvar,'.pdf'),plot=shplot,path=o,width=10,height=8,device="pdf")
 
 simplot <- ggplot(index,aes(x=factor(index[[assocvar]]),y=simpson)) + 
   geom_boxplot(aes(fill=factor(index[[assocvar]]))) + geom_jitter(position=position_jitter(width=0.3))+
@@ -73,7 +73,7 @@ simplot <- ggplot(index,aes(x=factor(index[[assocvar]]),y=simpson)) +
   theme(axis.text.x  = element_text(angle=0, vjust=0.5, size=12),
         panel.grid.minor=element_blank(),panel.grid.major=element_blank(),
         plot.title = element_text(lineheight=.12, face="bold"))
-ggsave('simpson.pdf',plot=simplot,path=o,width=10,height=8)
+ggsave(paste('simpson.',assocvar,'.pdf'),plot=simplot,path=o,width=10,height=8,device="pdf")
 
 invsplot <- ggplot(index,aes(x=factor(index[[assocvar]]),y=invsimpson)) + 
   geom_boxplot(aes(fill=factor(index[[assocvar]]))) + geom_jitter(position=position_jitter(width=0.3))+
@@ -82,7 +82,7 @@ invsplot <- ggplot(index,aes(x=factor(index[[assocvar]]),y=invsimpson)) +
   theme(axis.text.x  = element_text(angle=0, vjust=0.5, size=12),
         panel.grid.minor=element_blank(),panel.grid.major=element_blank(),
         plot.title = element_text(lineheight=.12, face="bold"))
-ggsave('invsimpson.pdf',plot=invsplot,path=o,width=10,height=8)
+ggsave(paste('invsimpson.',assocvar,'.pdf'),plot=invsplot,path=o,width=10,height=8,device="pdf")
 
 pdf(paste(o,"renyi_plot.pdf",sep=''),width=10, height=8)
 plot(Ren,main="Renyi diversities")
