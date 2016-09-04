@@ -65,7 +65,7 @@ nf.f <- normFactors(data.f)
 # saving files
 message("Exporting files...")
 saveRDS(data.f,file=paste(o,'dataF.rds',sep=''))
-message(" - dataF.rds -> Counts filtered and normalized - Scaling Factor Normalization (Paulson et. al 2013)\n",
+message(" - dataF.rds -> Counts filtered and normalized - Cumulative-sum scaling normalization (Paulson et. al 2013)\n",
         " ** Data was successfully prepared! **")
 
 
