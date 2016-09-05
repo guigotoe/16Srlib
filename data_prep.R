@@ -56,8 +56,10 @@ message("Preparing the files...")
 metadata <- mothur.metadata(read.table(m,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
 taxonomy <- mothur.taxonomy(read.table(t,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
 counts <- mothur.counts(read.table(c,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
+length(colnames(counts))
+length(union(colnames(counts),rownames(metadata)))
 
-if(all(colnames(counts)==rownames(metadata))==FALSE){
+if(length(colnames(counts))!=length(union(colnames(counts),rownames(metadata)))){
   message("**Error: Count-sample's names don't match with Metadata-sample's names!\n*Check the files and try again")
   quit()
 }
