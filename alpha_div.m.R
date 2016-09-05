@@ -15,14 +15,27 @@
 # Rscript alpha_div.m.R ~/16Srlib_test/results/dataF.rds Salinity_InterstitialWater ~/16Srlib_test/results/
 #* requirements *#
 
-initial.options <- commandArgs(trailingOnly = FALSE)
-file.arg.name <- "--file="
-script.name <- sub(file.arg.name, "", initial.options[grep(file.arg.name, initial.options)])
-script.basename <- dirname(script.name)
-other.name <- paste(sep="/", script.basename, "toolbox.R")
-#source("/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R")
-#source("/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R")
-source(other.name)
+get_script_path <- function() {
+  cmdArgs = commandArgs(trailingOnly = FALSE)
+  needle = "--file="
+  match = grep(needle, cmdArgs)
+  if (length(match) > 0) {
+    # Rscript
+    return(normalizePath(sub(needle, "", cmdArgs[match])))
+  } else {
+    ls_vars = ls(sys.frames()[[1]])
+    if ("fileName" %in% ls_vars) {
+      # Source'd via RStudio
+      return(normalizePath(sys.frames()[[1]]$fileName)) 
+    } else {
+      # Source'd via R console
+      return(normalizePath(sys.frames()[[1]]$ofile))
+    }
+  }
+}
+script.basename <- dirname(get_script_path())
+toolbox <- paste(sep="/", script.basename, "toolbox.R")
+source(toolbox)
 
 packages(c("metagenomeSeq","vegan","ggplot2","RColorBrewer"))
 
