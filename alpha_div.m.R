@@ -37,16 +37,16 @@ script.basename <- dirname(get_script_path())
 toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
 source(toolbox)
-
+p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
 packages(c("metagenomeSeq","vegan","ggplot2","RColorBrewer","RAM"))
 
 ###### end ######
 
 #* input *
 
-f <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/dataF.rds'#commandArgs()[6] #'/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/results/dataF.rds' # commandArgs()[6] #
-v <- 'age.group' #commandArgs()[7] #"Salinity_InterstitialWater"#commandArgs()[7]
-o <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/' #commandArgs()[8]
+f <- paste(p,'results/dataF.rds',sep='')#commandArgs()[6] #'/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/results/dataF.rds' # commandArgs()[6] #
+v <- 'Salinity' #commandArgs()[7]
+o <- paste(p,'results/',sep='') #commandArgs()[8]
 ## ##
 df <- readRDS(f)
 dfc <- MRcounts(df,norm=T)
@@ -120,22 +120,267 @@ dev.off()
 ## end ##
 
 ### Structural analysis ##
+#v <- 'Gender'
 
-trials <- pData(df)[[v]]
+## replicates correlation ##
+# calculate the pearson correlation between samples in order to see replication issues.
+
+eucldist <- dist(t(dfc))
+dismatplot(eucldist,rownames(pData(df.n)),"Euclidian distance matrix")
+poisd <- PoissonDistance(t(dfc))
+dismatplot(eucldist,rownames(pData(df.n)),"Pearson correlation matrix")
+brayCurtis <- vegdist(t(dfc))
+dismatplot(brayCurtis,rownames(pData(df.n)),"Bray-Curtis dissimilarity matrix")
+
+## OTU abundance analysis ##
+vs <- c("Salinity","Textura")
+
+g <- as.data.frame(dfc)
+g$id <- rownames(dfc)
+gx <- merge(g,fData(df.n),by.x="id",by.y="OTU")
+
+require(zCompositions)
+# Compositional Data - proportions
+dfc.p <- t(cmultRepl(t(dfc),method="SQ",output="prop"))
+rownames(dfc.p) <- gx$Phylum
+gm <- cbind(t(dfc.p),pData(df.n)[vs])
+gm_m <- melt(gm,id.vars=vs)
+#gm_m[!is.na(gm_m$variable),]
+limit=0.01
+taxa <- unlist(apply(gmx1,1, function(x) if(as.numeric(x["value"])>limit){(x["variable"])}else{"Others"}))
+gmx1$"taxa" <- as.factor(taxa)
+gmx1 <- aggregate(value ~ Salinity+variable,data=gm_m,FUN=sum) # Because some taxa now are xOthers so we need to summ their values
+
+## before plot we need to order the taxa levels according their values of abundance and prevalence in individuals
+taxorder <- data.frame(taxa=levels(gmx1$taxa),rate=rep(0,length(levels(gmx1$taxa))))
+for (i in levels(gmx1$taxa)){
+  a <- sum(unlist(lapply(gmx1$value[gmx1$taxa==i],sum))) # OTU global abundace. max = No. of individuals 
+  b <- table(gmx1$taxa)[i][[1]]                          # OTU prevalence. max = No. of individuals
+  taxorder$rate[taxorder$taxa==i] <- sum(a,b)
+}
+taxorder <- taxorder[order(-taxorder[,"rate"]),]
+taxorder <- taxorder[-which(taxorder$taxa=="Others"),]
+gmx1$taxa <- factor(gmx1$taxa,levels=c(as.character(taxorder$taxa),"Others"))
+gmx1 <- gmx1[order(gmx1[[v]],gmx1$taxa),]
+
+colourCount = length(levels(gmx2$taxa))
+base <- colorRampPalette(brewer.pal(8, "Set1"))(9)[1:3]
+if (colourCount <= 3) {palette <- base
+}else palette <- c(base,RAM.pal(cols.needed=(colourCount-2))[-c(1)])
+
+taxlevel <- "Phyllum"
+title <- "Phyllum abundance distribution"
+
+ggplot(gmx1,aes(x=as.factor(Salinity),y=value,fill=taxa))+geom_jitter()#+
+  scale_fill_manual(name=taxlevel,values=palette) + #limits=c(levels(gmx2[1]),levels(gmx2[length(levels(gmx2))]))
+  scale_x_discrete("")+ylab("Proportion")+
+  ggtitle(paste(title,sep=""))+
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size=12),
+        panel.grid.minor=element_blank(),panel.grid.major=element_blank(),
+        legend.position="bottom",legend.box="horizontal",
+        legend.text = element_text(size=10),
+        legend.title = element_text(size=16, face="bold"),
+        plot.title = element_text(lineheight=.12, face="bold"))
+
+
+
+
+
+gm <- cbind(t(dfc.p),pData(df.n)[vs])
+gm_m <- melt(gm,id.vars=vs)
+#gm_m[!is.na(gm_m$variable),]
+limit=0.005
+taxa <- unlist(apply(gm_m,1, function(x) if(as.numeric(x["value"])>limit){(x["variable"])}else{"Others"}))
+gm_m$"taxa" <- as.factor(taxa)
+na.omit(gm_m)
+## before plot we need to order the taxa levels according their values of abundance and prevalence in individuals
+taxorder <- data.frame(taxa=levels(gmx2$taxa),rate=rep(0,length(levels(gmx2$taxa))))
+for (i in levels(gmx2$taxa)){
+  a <- sum(unlist(lapply(gmx2$value[gmx2$taxa==i],sum))) # OTU global abundace. max = No. of individuals 
+  b <- table(gmx2$taxa)[i][[1]]                          # OTU prevalence. max = No. of individuals
+  taxorder$rate[taxorder$taxa==i] <- sum(a,b)
+}
+taxorder <- taxorder[order(-taxorder[,"rate"]),]
+taxorder <- taxorder[-which(taxorder$taxa=="Others"),]
+gmx2$taxa <- factor(gmx2$taxa,levels=c(as.character(taxorder$taxa),"Others"))
+gmx2 <- gmx2[order(gmx2[[v]],gmx2$taxa),]
+
+## placing the colors to the taxas
+
+colourCount = length(levels(gmx2$taxa))
+base <- colorRampPalette(brewer.pal(8, "Set1"))(9)[1:3]
+if (colourCount <= 3) {palette <- base
+}else palette <- c(base,RAM.pal(cols.needed=(colourCount-2))[-c(1)])
+
+taxlevel <- "Phyllum"
+title <- "Phyllum abundance distribution"
+
+ggplot(gmx2,aes(x=as.factor(Salinity),y=value,fill=taxa))+geom_boxplot()+
+  scale_fill_manual(name=taxlevel,values=palette) + #limits=c(levels(gmx2[1]),levels(gmx2[length(levels(gmx2))]))
+  scale_x_discrete("")+ylab("Proportion")+
+  ggtitle(paste(title,sep=""))+
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size=12),
+        panel.grid.minor=element_blank(),panel.grid.major=element_blank(),
+        legend.position="bottom",legend.box="horizontal",
+        legend.text = element_text(size=10),
+        legend.title = element_text(size=16, face="bold"),
+        plot.title = element_text(lineheight=.12, face="bold"))
+
+
+#if(!is.null(savef)) ggsave(paste(savef,title,'_',taxlevel,idslab,'.pdf',sep=""),width=12, height=8)
+
+
+
+
+
+
+
+
+tax_graph <- function(df,limit=0.06,taxlevel="Genus",savef=NULL,ids=F,method="SQ",taxon=NULL){
+  gm <- fillzeros(df,output="prop",method=method)
+  if("Bacteroidetes"%in%colnames(gm)){gm$"taxlab" <- gm[,"Firmicutes"]  # phyllum reference to graph order
+  }else gm$"taxlab" <- rep(1,NROW(gm))
+  colnames(gm)[which(names(gm) == "gut")] <- "RC9_gut_group"
+  colnames(gm)[which(names(gm) == "Incertae")] <- "Incertae_Sedis"
+  gm_m <- melt(gm,id.vars=c("id","gender","age","agex","age.group","age.mean","taxlab"))
+  ranks <- unlist(lapply(gm_m$"age", function(x) getrank(x)))
+  taxa <- unlist(apply(gm_m,1, function(x) if(as.numeric(x["value"])>limit){(x["variable"])}else{"Others"}))
+  gm_m$"ranks" <- as.factor(ranks)
+  gm_m$"taxa" <- as.factor(taxa) 
+  gmx <- within(gm_m,position <- factor(age,levels=names(sort(table(age)))))
+  gmx2 <- aggregate(value ~ id+taxa+age+agex+position+ranks+age.group+age.mean+gender+taxlab,data=gmx,FUN=sum) # Because some taxa now are xOthers so we need to summ their values
+  
+  ## before plot we need to order the taxa levels according their values of abundance and prevalence in individuals
+  taxorder <- data.frame(taxa=levels(gmx2$taxa),rate=rep(0,length(levels(gmx2$taxa))))
+  for (i in levels(gmx2$taxa)){
+    a <- sum(unlist(lapply(gmx2$value[gmx2$taxa==i],sum))) # OTU global abundace. max = No. of individuals 
+    b <- table(gmx2$taxa)[i][[1]]                          # OTU prevalence. max = No. of individuals
+    taxorder$rate[taxorder$taxa==i] <- sum(a,b)
+  }
+  taxorder <- taxorder[order(-taxorder[,"rate"]),]
+  taxorder <- taxorder[-which(taxorder$taxa=="Others"),]
+  gmx2$taxa <- factor(gmx2$taxa,levels=c(as.character(taxorder$taxa),"Others"))
+  gmx2 <- gmx2[order(gmx2$agex,gmx2$taxa),]
+  
+  ## placing the colors to the taxas
+  colourCount = length(levels(gmx2$taxa))
+  base <- colorRampPalette(brewer.pal(8, "Set1"))(colourCount-1)
+  base <- base[c(1,3,2,c(4:length(base)))]
+  base2 <- colorRampPalette(brewer.pal(8, "Set1"))(9)
+  base2 <- base[c(1,3,2,c(4:length(base)))] 
+  if (colourCount <= 10) {palette <- c(base,"#3D3D3D")
+  }else if (colourCount <= 19) {palette <- c(base2,colorRampPalette(brewer.pal(8, "Accent"))(colourCount-10),"#3D3D3D")
+  }else palette <- c(base2,colorRampPalette(brewer.pal(8, "Set3"))(9),
+                     colorRampPalette(brewer.pal(8, "Accent"))(colourCount-19),"#3D3D3D")
+  
+  if(taxlevel=="Phylla"){
+    gm$ratioFB <- unlist(apply(gm,1,function(x) round(as.numeric(x["Firmicutes"])/as.numeric(x["Bacteroidetes"]),2)))
+    print(aggregate(gm[,"ratioFB"], list(gm$age.group), mean))
+    print(c(summary(as.numeric(gm[,"Firmicutes"])),summary(as.numeric(gm[,"Bacteroidetes"])),summary(as.numeric(gm[,"Proteobacteria"]))))
+  }
+  
+  plot <- function(gm.g,title,taxlevel,palette,savef=NULL,ids=F){
+    x_labels <- gm[,c("agex","age","id","taxlab")][order(gm[,c("agex","age","id","taxlab")][,"agex"]),]
+    if (ids==T){ 
+      x_lab <- unlist(apply(x_labels,1,function(x) paste(x[3],x[2],sep="_")))
+      idslab <- '_ids'
+    }else {
+      x_lab <- x_labels$age
+      idslab <- ''
+    }
+    #gmx2.g <- subset(gmx2,gmx2$gender==g) ## each gender
+    
+    # to be color consistente 
+    e <- length(table(gm.g$taxa)[table(gm.g$taxa)==0])
+    if (e!=0) {palette.g <- palette[-c((length(palette)-e):(length(palette)-1))]
+    }else palette.g <- palette
+    
+    ggplot(gm.g, aes(x=as.factor(agex),y=value,fill=taxa))+
+      geom_bar(stat="identity",width=1)+
+      scale_fill_manual(name=taxlevel,values=palette.g) + #limits=c(levels(gmx2[1]),levels(gmx2[length(levels(gmx2))]))
+      scale_x_discrete("Age",labels=as.character(x_lab))+ylab("Proportion")+
+      guides(fill=guide_legend(ncol=6,keywidth=1, keyheight=1))+
+      ggtitle(title)+#facet_wrap(~ age+facet_wrap(~ taxa))+
+      theme(axis.text.x  = element_text(angle=90, vjust=0.5, size=12),
+            panel.grid.minor=element_blank(),panel.grid.major=element_blank(),
+            legend.position="bottom",legend.box="horizontal",
+            legend.text = element_text(size=14),
+            legend.title = element_text(size=16, face="bold"),
+            plot.title = element_text(lineheight=.12, face="bold"))
+    if(!is.null(savef)) ggsave(paste(savef,title,'_',taxlevel,idslab,'.pdf',sep=""),width=12, height=8)
+    
+    ggplot(gm.g,aes(x=as.factor(age.group),y=value,fill=taxa))+geom_boxplot()+
+      scale_fill_manual(name=taxlevel,values=palette.g) + #limits=c(levels(gmx2[1]),levels(gmx2[length(levels(gmx2))]))
+      scale_x_discrete("")+ylab("Proportion")+
+      ggtitle(paste(title,sep=""))+
+      theme(axis.text.x  = element_text(angle=90, vjust=0.5, size=12),
+            panel.grid.minor=element_blank(),panel.grid.major=element_blank(),
+            legend.position="bottom",legend.box="horizontal",
+            legend.text = element_text(size=14),
+            legend.title = element_text(size=16, face="bold"),
+            plot.title = element_text(lineheight=.12, face="bold"))
+    if(!is.null(savef)) ggsave(paste(savef,title,'_',taxlevel,idslab,'_boxplot.pdf',sep=""),width=12, height=8)
+    
+    if(title=="All" & taxlevel=="Phylla"){
+      phylabs <- x_labels[order(x_labels[,"taxlab"]),]
+      x_lab <- phylabs$age
+      
+      # for comparisson effects with paper Claesson 2011
+      #x <- levels(as.factor(gm.g$taxlab))
+      #y <- levels(as.factor(gm.g$taxa))
+      #gm.g$taxlab <- factor(gm.g$taxlab,levels=sort(x,decreasing = T))    
+      #gm.g$taxa <- factor(gm.g$taxa,levels=y[c(2,1,c(3:length(y)))])
+      #gm.g$taxa <- factor(gm.g$taxa,levels=y)
+      gm.g$taxlab <- factor(gm.g$taxlab,levels=sort(x))
+      ###
+      
+      ggplot(gm.g, aes(x=as.factor(taxlab),y=value,fill=taxa))+
+        geom_bar(stat="identity",width=1)+
+        scale_fill_manual(name=taxlevel,values=palette) + #limits=c(levels(gmx2[1]),levels(gmx2[length(levels(gmx2))]))
+        scale_x_discrete("Age",labels=as.character(x_lab))+ylab("Proportion")+
+        guides(fill=guide_legend(ncol=6,keywidth=1, keyheight=1))+
+        ggtitle(title)+#facet_wrap(~ age+facet_wrap(~ taxa))+
+        theme(axis.text.x  = element_text(angle=90, vjust=0.5, size=12),
+              panel.grid.minor=element_blank(),panel.grid.major=element_blank(),
+              legend.position="bottom",legend.box="horizontal",
+              legend.text = element_text(size=14),
+              legend.title = element_text(size=16, face="bold"),
+              plot.title = element_text(lineheight=.12, face="bold"))
+      if(!is.null(savef)) ggsave(paste(savef,title,'_',taxlevel,idslab,'_boxplot_2ClaessonComp.pdf',sep=""),width=12, height=8)
+    }
+  }
+  ## Ploting by genders
+  # labels for x axis
+  
+  for (g in levels(as.factor(gm$gender))){
+    title <- paste(toupper(substring(as.character(g),1,1)),substring(as.character(g),2),sep="")
+    #gm.g <- subset(gm,gm$gender==g) ## each gender
+    gmx2.g <- subset(gmx2,gmx2$gender==g)
+    plot(gmx2.g,title,taxlevel=taxlevel,palette=palette,savef=savef)
+  }
+  plot(gmx2,title="All",taxlevel=taxlevel,palette=palette,savef=savef)
+}
+
+
+
+trials <- pData(df.n)[[v]]
 
 heatmapColColors <- RAM.pal(cols.needed=length(levels(as.factor(trials))))[as.integer(factor(trials))]
 heatmapCols <- colorRampPalette(brewer.pal(9,"RdBu"))(50)
-plotMRheatmap(obj=df,n=20,cexRow=0.4,cexCol=0.4,trace="none",
+plotMRheatmap(obj=df.n,n=200,cexRow=0.4,cexCol=1,trace="none",
               col=heatmapCols,ColSideColors=heatmapColColors)
-plotCorr(obj=df,n=200,cexRow=0.25,cexCol=0.25,trace="none",
+plotCorr(obj=df.n,n=100,cexRow=0.25,cexCol=0.25,trace="none",
               col=heatmapCols,dendogram="none")
-v <- 'Gender'
-x <- cut(pData(df.n)[["Age"]],breaks=10)
-cl=factor(x)
-colrs <- RAM.pal(cols.needed=length(levels(as.factor(x))))[as.integer(factor(x))]
-plotOrd(df.n,tran=T,usePCA=F,useDist=T,bg=x,pch=21,col=colrs)
-legend("bottomright",levels(x),text.col=RAM.pal(cols.needed=length(levels(as.factor(x)))),box.col=NA)
+#v <- 'Gender'
+#x <- cut(pData(df.n)[["Age"]],breaks=9)
+cl=factor(pData(df.n)[[v]])
+colrs <- colorRampPalette(brewer.pal(8, "Set1"))(9)[as.integer(factor(cl))]
+plotOrd(df.n,tran=T,usePCA=F,useDist=T,bg=colrs,pch=21)
+legend("bottomright",levels(cl),box.col=NA,text.col=colorRampPalette(brewer.pal(8, "Set1"))(9))
 
+
+
+##
 res <- plotRare(df.n,cl=cl,pch=21,bg=cl)
 
 tmp <- lapply(levels(cl),function(lv) lm(res[,"ident"]~res[,"libSize"] - 1,subset=cl==lv))
@@ -143,7 +388,6 @@ for(i in 1:length(levels(cl))){
   abline(tmp[[i]],col=i)
 }
 legend("topleft",levels(cl),text.col=c(1,2,3,4),box.col=NA)
-levels(as.factor(pData(df.n)[["age.mean"]]))
 ##
 
 

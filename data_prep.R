@@ -35,21 +35,22 @@ get_script_path <- function() {
   }
 }
 script.basename <- dirname(get_script_path())
+toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
 source(toolbox)
 #source("/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R")
-#source("/home/torres/Documents/Projects/Metagenome/bin/rscripts/16Srlib/toolbox.R")
+p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
 packages(c("metagenomeSeq"))
 
 ###### end ######
 
 #* input *
-c <- commandArgs()[6] #'/home/torres/ikmb_storage/Metagenome/16s/03.2016/16s.an.shared' # commandArgs()[6] #
-t <- commandArgs()[7] #'/home/torres/ikmb_storage/Metagenome/16s/03.2016/16s.an.cons.taxonomy' # commandArgs()[7] #
-m <- commandArgs()[8] #'/home/torres/ikmb_storage/Metagenome/16s/03.2016/metadata.txt' # commandArgs()[8] #
-th <-commandArgs()[9] #0.05 #commandArgs()[9] # percentage threshold of OTU's presence across the samples.
+c <- paste(p,'16S.otus.count',sep='') # commandArgs()[6] #
+t <- paste(p,'16S.otus.taxonomy',sep='') # commandArgs()[7] #
+m <- paste(p,'metadata2',sep='') # commandArgs()[8] #
+th <- 0.22 #commandArgs()[9] # percentage threshold of OTU's presence across the samples.
 d <- 10 # depth count threshold - by default.
-o <- commandArgs()[10] #'/home/torres/Documents/Projects/Metagenome/results/plotsMothur/09.2016/' #
+o <- paste(p,'results/',sep='')#commandArgs()[10] #'/home/torres/Documents/Projects/Metagenome/results/plotsMothur/09.2016/' #
 
 
 message("Preparing the files...")

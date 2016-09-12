@@ -37,7 +37,7 @@ numDFtranspose <- function(df){
 
 mothur.taxonomy <- function(taxonomy){
   packages(c("reshape2"))
-  x <- colsplit(taxonomy$Taxonomy,pattern="\\([[:digit:]]*\\);",names = c('Kingdom','Phylum','Class','Order','Family','Genus'))
+  x <- colsplit(taxonomy$Taxonomy,pattern="\\([[:digit:]]*\\);",names = c('Kingdom','Phylum','Class','Order','Family','Genus',"Specie","others"))
   x$Genus <- gsub("\\([[:digit:]]*\\);",'',x$Genus)
   x[x==""]  <- NA
   df <- cbind(taxonomy[,1:2],x)
@@ -97,12 +97,29 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
   
   return(datac)
 }
+
 resetPar <- function() {
   dev.new()
   op <- par(no.readonly = TRUE)
   dev.off()
   op
 }
+
+dismatplot <- function(sampleDists,samplenames,title){
+  packages(c("pheatmap"))
+  #sampleDists <- dist(t(distmat))
+  sampleDistMatrix <- as.matrix( sampleDists )
+  rownames(sampleDistMatrix) <- samplenames #paste(rownames(pData(df)), sep="" )
+  colnames(sampleDistMatrix) <- samplenames
+  colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+  #pdf(paste("Heatmap_",title,".pdf",sep=""),pointsize=12, width=10,height=7)
+  pheatmap(sampleDistMatrix,main=title,
+           clustering_distance_rows=sampleDists,
+           clustering_distance_cols=sampleDists,
+           col=colors)
+  #dev.off()
+}
+
 
 ###
 ###
