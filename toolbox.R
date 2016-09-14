@@ -20,7 +20,7 @@ packages <- function(requirements){
     message("Installing packages...")
     setRepositories(ind=1:10)
     #options(install.packages.check.source = "no")
-    install.packages(requirements[!has],repos="https://cran.uni-muenster.de/")
+    install.packages(requirements[!has])
   }
   lapply(requirements, require, character.only = TRUE)
 }
@@ -107,7 +107,6 @@ resetPar <- function() {
 
 dismatplot <- function(sampleDists,samplenames,title){
   packages(c("pheatmap"))
-  #sampleDists <- dist(t(distmat))
   sampleDistMatrix <- as.matrix( sampleDists )
   rownames(sampleDistMatrix) <- samplenames #paste(rownames(pData(df)), sep="" )
   colnames(sampleDistMatrix) <- samplenames
@@ -119,6 +118,7 @@ dismatplot <- function(sampleDists,samplenames,title){
            col=colors)
   #dev.off()
 }
+
 
 
 ###

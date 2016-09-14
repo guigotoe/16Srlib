@@ -35,11 +35,13 @@ get_script_path <- function() {
   }
 }
 script.basename <- dirname(get_script_path())
-toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
+#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
+toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
 #source("/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R")
-p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
+#p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
+p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 packages(c("metagenomeSeq"))
 
 ###### end ######
@@ -47,7 +49,7 @@ packages(c("metagenomeSeq"))
 #* input *
 c <- paste(p,'16S.otus.count',sep='') # commandArgs()[6] #
 t <- paste(p,'16S.otus.taxonomy',sep='') # commandArgs()[7] #
-m <- paste(p,'metadata2',sep='') # commandArgs()[8] #
+m <- paste(p,'metadata',sep='') # commandArgs()[8] #
 th <- 0.22 #commandArgs()[9] # percentage threshold of OTU's presence across the samples.
 d <- 10 # depth count threshold - by default.
 o <- paste(p,'results/',sep='')#commandArgs()[10] #'/home/torres/Documents/Projects/Metagenome/results/plotsMothur/09.2016/' #
