@@ -37,28 +37,30 @@ get_script_path <- function() {
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
 #toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
-toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
+#toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
-#source("/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R")
 #p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
-p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
+#p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 packages(c("metagenomeSeq"))
 
 ###### end ######
 
 #* input *
-c <- paste(p,'16S.otus.count',sep='') # commandArgs()[6] #
-t <- paste(p,'16S.otus.taxonomy',sep='') # commandArgs()[7] #
-m <- paste(p,'metadata',sep='') # commandArgs()[8] #
-th <- 0.22 #commandArgs()[9] # percentage threshold of OTU's presence across the samples.
+c <- commandArgs()[6] # paste(p,'16S.otus.count',sep='') #
+t <- commandArgs()[7] # paste(p,'16S.otus.taxonomy',sep='') # 
+m <- commandArgs()[8] # paste(p,'metadata',sep='') # 
+th <- commandArgs()[9] # 0.22 # percentage threshold of OTU's presence across the samples.
 d <- 10 # depth count threshold - by default.
-o <- paste(p,'results/',sep='')#commandArgs()[10] #'/home/torres/Documents/Projects/Metagenome/results/plotsMothur/09.2016/' #
+o <- commandArgs()[10] # 'paste(p,'results/',sep='')##
 
 
 message("Preparing the files...")
 metadata <- mothur.metadata(read.table(m,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
 taxonomy <- mothur.taxonomy(read.table(t,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
 counts <- mothur.counts(read.table(c,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
+counts <- subset(counts,taxonomy$Kingdom!="unclassified")
+taxonomy <- subset(taxonomy,taxonomy$Kingdom!="unclassified")
+
 length(colnames(counts))
 length(union(colnames(counts),rownames(metadata)))
 
