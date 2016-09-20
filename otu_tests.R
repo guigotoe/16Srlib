@@ -11,8 +11,8 @@
 ####################################################
 # Prepare and filters the data from mothur.
 # How to use:
-# Rscript otu_trend.R /path/dataF.rds association_variable /path/outfolder/
-# Rscript otu_trend.R ~/16Srlib_test/results/dataF.rds Salinity ~/16Srlib_test/results/
+# Rscript otu_trend.R /path/dataF.rds association_variable co-variants/path/outfolder/
+# Rscript otu_trend.R ~/16Srlib_test/results/dataF.rds Salinity Limo,Arena ~/16Srlib_test/results/
 #* requirements *#
 
 get_script_path <- function() {
@@ -35,10 +35,10 @@ get_script_path <- function() {
 }
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
-toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
+#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
 #toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
-p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
+#p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
 #p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 packages(c("metagenomeSeq","vegan","ggplot2","RColorBrewer","RAM","PoiClaClu","zCompositions","reshape2"))
 
@@ -47,18 +47,16 @@ packages(c("metagenomeSeq","vegan","ggplot2","RColorBrewer","RAM","PoiClaClu","z
 #* input *
 
 f <- paste(p,'results/dataF.rds',sep='') #commandArgs()[6] # paste(p,'results/dataF.rds',sep='') #
-vs <- 'Salinity' #commandArgs()[7]# 'Salinity,Textura' #
+vs <- commandArgs()[7]# 'Salinity,Textura' #
 #vs <- unlist(strsplit(vs,','))
-cf <- ''#,CT,NT,Ca,K,Mg,Na,CICE,Cu,S,P,Fe,Mn,Zn,B,Arcilla,Limo,Arena'
+cf <- commandArgs()[8]#''#,CT,NT,Ca,K,Mg,Na,CICE,Cu,S,P,Fe,Mn,Zn,B,Arcilla,Limo,Arena'
 cf <- unlist(strsplit(cf,','))
 th <- 0.90 
-o <- paste(p,'results/',sep='') #commandArgs()[8] # paste(p,'results/',sep='') #
+o <- commandArgs()[9] # paste(p,'results/',sep='') #
 ## ##
 df <- readRDS(f)
-#df <- newMRexperiment(MRcounts(df,norm=T),phenoData=AnnotatedDataFrame(pData(df)),featureData=AnnotatedDataFrame(fData(df)))
 
-
-### differential abundance testing -- based on OTUs shaded by 70% of the samples #### 
+### differential abundance testing -- based on OTUs shaded by 90% of the samples #### 
 if(as.numeric(th)==0){th.s=0
 }else{th.s <- round(as.numeric(th)*NROW(pData(df)))}
 
