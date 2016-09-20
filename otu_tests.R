@@ -40,13 +40,13 @@ toolbox <- paste(sep="/", script.basename, "toolbox.R")
 source(toolbox)
 #p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
 #p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
-packages(c("metagenomeSeq","vegan","ggplot2","RColorBrewer","RAM","PoiClaClu","zCompositions","reshape2"))
+packages(c("metagenomeSeq","reshape2"))
 
 ###### end ######
 
 #* input *
 
-f <- paste(p,'results/dataF.rds',sep='') #commandArgs()[6] # paste(p,'results/dataF.rds',sep='') #
+f <- commandArgs()[6] # paste(p,'results/dataF.rds',sep='') #
 vs <- commandArgs()[7]# 'Salinity,Textura' #
 #vs <- unlist(strsplit(vs,','))
 cf <- commandArgs()[8]#''#,CT,NT,Ca,K,Mg,Na,CICE,Cu,S,P,Fe,Mn,Zn,B,Arcilla,Limo,Arena'
@@ -114,7 +114,8 @@ dfc <- df.f[f,1:length(sampleNames(df.f))]
 
 ### Cluster analysis
 
-getClusters(MRcounts(dfc,norm=T),log2(MRcounts(dfc,norm=T)+1),design <- as.data.frame(pData(dfc)[[vs]]),method="K",path=o,prefix="",val=4)
+getClusters(MRcounts(dfc,norm=T),log2(MRcounts(dfc,norm=T)+1),
+            as.data.frame(pData(dfc)[[vs]]),method="K",path=o,prefix="",val=4)
 
 message("\nAll done!\n")
 
