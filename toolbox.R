@@ -192,7 +192,10 @@ getClusters <- function(DEdata,ldata,method=c("PAM","P","K","Km"),design,path,pr
     gene_partition_assignments <- cutree(as.hclust(hc_genes), h=val/100*max(hc_genes$height))
     file_name <- paste("clusters_fixed_",dis,"_P_",val,sep="")
   }else if (method == "PAM"| is.null(method)){
-  #(Recommended) cut the hierarchically clustered gene tree at --Ptree percent height of the tree.
+  # Used by Arumugam et al 2011.Partitioning around medoids (PAM) clustering algorithm
+  # to cluster the abundance profiles. PAM derives from the basic k-means algorithm, 
+  # but has the advantage that it supports any arbitrary distance measure and is more robust 
+  # than k-means
   gene_partition_assignments = pam(as.dist(gene_dist),val, diss=TRUE)$clustering
   file_name <- paste("clusters_fixed_",dis,"_PAM_",val,sep="")
   }
