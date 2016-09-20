@@ -11,8 +11,8 @@
 ####################################################
 # Prepare and filters the data from mothur.
 # How to use:
-# Rscript otu_trend.R /path/dataF.rds association_variable co-variants/path/outfolder/
-# Rscript otu_trend.R ~/16Srlib_test/results/dataF.rds Salinity Limo,Arena ~/16Srlib_test/results/
+# Rscript otu_test.R /path/dataF.rds association_variable co-variants/path/outfolder/
+# Rscript otu_test.R ~/16Srlib_test/results/dataF.rds Salinity Limo,Arena ~/16Srlib_test/results/
 #* requirements *#
 
 get_script_path <- function() {
