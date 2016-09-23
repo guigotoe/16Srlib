@@ -22,7 +22,7 @@ packages <- function(requirements){
     #options(install.packages.check.source = "no")
     install.packages(requirements[!has],repos='http://cran.us.r-project.org') #repos="https://cran.uni-muenster.de/"
   }
-  lapply(requirements, require, character.only = TRUE)
+  suppressPackageStartupMessages(lapply(requirements,require,character.only=T,quietly=T))
 }
 
 numDFtranspose <- function(df){
