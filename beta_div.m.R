@@ -37,18 +37,18 @@ get_script_path <- function() {
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
 #toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
-toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
+#toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
 packages(c("metagenomeSeq","reshape2","vegan","ggplot2","optparse"))
 
 ## Options ##
 #p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
-p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
+#p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 
 option_list <- list(
-  make_option(c("-i","--data"),type="character",default=paste(p,'results/dataF.rds',sep=''),
+  make_option(c("-i","--data"),type="character",#default=paste(p,'results/dataF.rds',sep=''),
               help="Path to input rds file"),
-  make_option(c("-o","--out"),type="character",default=paste(p,'results/',sep=''),
+  make_option(c("-o","--out"),type="character",#default=paste(p,'results/',sep=''),
              help="Path to output directory [default %default]"),
   make_option(c("-e","--exploratory"),action="store_true",
               help="Perform exploratory analysis"),
