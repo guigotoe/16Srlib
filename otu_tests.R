@@ -35,45 +35,69 @@ get_script_path <- function() {
 }
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
-#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
+toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
 #toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
-#p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
+
+packages(c("metagenomeSeq","reshape2","optparse"))
+
+## Options ##
+p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
 #p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
-packages(c("metagenomeSeq","reshape2"))
+
+option_list <- list(
+  make_option(c("-i","--data"),type="character",default=paste(p,'results/dataF.rds',sep=''),
+              help="Path to input rds file"),
+  make_option(c("-o","--out"),type="character",default=paste(p,'results/',sep=''),
+              help="Path to output directory [default %default]"),
+  make_option(c("-c","--conf"),type="character",default='Arcilla',
+              help="Confounder variables - separated by comma"),
+  make_option(c("-v","--variable"),type="character",default='Salinity',
+              help="Variable of association"),
+  make_option(c("-t","--shared"),type="double",default=0.9,
+              help="Sample's OTU-shared percentage. 0-1; default: %default"),
+  make_option(c("-l","--level"),type="character",default="otu",
+              help="Taxonomical level of the analysis (otu,genus,family,order,class,phylum). default: %default"),
+  make_option(c("-m","--clmethod"),type="character",default='K',
+              help="Clusterization method.(PAM,P,K,Km)\nUse K-means clustering to define K feature sets \n
+              ; default: %default"),
+  make_option(c("-n","--clval"),type="double",default=4,
+              help="Number of clusters (K method) or \
+              cut the hierarchically clustered tree at -n percent height of the tree (P method).\n
+              default: %default")
+)
+parser <- OptionParser(usage = "%prog -i path/to/infile -o path/to/outdir [options]",option_list=option_list)
+opt <- parse_args(parser)
+#parse_args(parser,positional_arguments=1) 
+if (is.null(opt$data)){stop(sprintf("There is not data file specified"))}
+opt$conf <- unlist(strsplit(opt$conf,','))
 
 ###### end ######
 
-#* input *
+df <- readRDS(opt$data)
 
-f <- commandArgs()[6] # paste(p,'results/dataF.rds',sep='') #
-vs <- commandArgs()[7]# 'Salinity,Textura' #
-#vs <- unlist(strsplit(vs,','))
-cf <- commandArgs()[8]#''#,CT,NT,Ca,K,Mg,Na,CICE,Cu,S,P,Fe,Mn,Zn,B,Arcilla,Limo,Arena'
-cf <- unlist(strsplit(cf,','))
-th <- 0.90 
-o <- commandArgs()[9] # paste(p,'results/',sep='') #
-## ##
-df <- readRDS(f)
-
-### differential abundance testing -- based on OTUs shaded by 90% of the samples #### 
-if(as.numeric(th)==0){th.s=0
-}else{th.s <- round(as.numeric(th)*NROW(pData(df)))}
+### differential abundance testing -- based on OTUs-shared by 90% of the samples #### 
+if(as.numeric(opt$shared)==0){th.s=0
+}else{th.s <- round(as.numeric(opt$shared)*NROW(pData(df)))}
 
 ## Differential abbundance test - including counfounders ###
-df.f <- filterData(df,present=th.s)
+df.f <- filterData(df,present=th.s) # Filtration process according otu presence
 p.f <- cumNormStat(df.f,pFlag=TRUE,main="Data") # Calculates the percentile for which to sum counts up to and scale by.
-cfs <- unlist(sapply(cf,function(x) return(paste('pData(df.f)$',x,sep=''))))
+cfs <- unlist(sapply(opt$conf,function(x) return(paste('pData(df.f)$',x,sep='')))) # Confounders
+
+## FitZig Method
+
 normFactor <- normFactors(df.f)  # Calculates each column's quantile and calculates the sum up to and including p quantile
 normFactor <- log2(normFactor/median(normFactor) + 1)
-mod <- model.matrix(as.formula(paste("~",paste('0+factor(pData(df.f)[["',vs,'"]])+',sep=''),
+mod <- model.matrix(as.formula(paste("~",paste('0+factor(pData(df.f)[["',opt$variable,'"]])+',sep=''),
                                      paste(cfs,collapse='+'),'+normFactor')))
 settings <- zigControl(maxit=10,verbose=T)
 
 fit <- fitZig(obj=df.f,mod=mod,useCSSoffset=F,control=settings)
+#summary(calculateEffectiveSamples(fit))
 zigFit <- fit$fit
 finalMod <- fit$fit$design
-x <- unlist(sapply(colnames(finalMod),function(x) return(gsub(paste('factor(pData(df.f)[["',vs,'"]])',sep=''),vs,x,fixed=T))))
+x <- unlist(sapply(colnames(finalMod),function(x) return(gsub(paste('factor(pData(df.f)[["',opt$variable,'"]])',sep=''),opt$variable,x,fixed=T))))
 colnames(finalMod) <- x
 x <- unlist(sapply(colnames(finalMod),function(x) return(gsub(paste('pData(df.f)$',sep=''),'',x,fixed=T))))
 colnames(finalMod) <- x
@@ -81,29 +105,30 @@ colnames(zigFit$coefficients) <- colnames(finalMod)
 colnames(zigFit$stdev.unscaled) <- colnames(finalMod)
 colnames(zigFit$cov.coefficients) <- colnames(finalMod)
 colnames(zigFit$design) <- colnames(finalMod)
-k <- levels(factor(pData(df.f)[[vs]]))
-k <- unlist(sapply(k,function(x) return(paste(vs,x,sep=''))))
-c <- c(paste(combn(k,2)[1,1],combn(k,2)[2,1],sep='-'),
-       paste(combn(k,2)[1,2],combn(k,2)[2,2],sep='-'),
-       paste(combn(k,2)[1,3],combn(k,2)[2,3],sep='-'))
-contrast.matrix <- makeContrasts(contrasts=c,levels=finalMod)
+k <- levels(factor(pData(df.f)[[opt$variable]]))  # states of the variable in study
+k <- unlist(sapply(k,function(x) return(paste(opt$variable,x,sep=''))))
+mk <- combn(k,2)
+contrast_list <- c()
+for (i in 1:dim(mk)[2]){contrast_list <- c(contrast_list,paste(mk[1,i],mk[2,i],sep='-'))}
+contrast.matrix <- makeContrasts(contrasts=contrast_list,levels=finalMod)
 fit2 <- contrasts.fit(zigFit,contrast.matrix)
 fit2=eBayes(fit2)
-results <- decideTests(fit2,method="separate",adjust.method="BH",p.value=0.05)
+results <- decideTests(fit2,method="separate",adjust.method="fdr",p.value=0.05) ## 1/0/-1 result DEtable 
 
 DElist <- c() 
 for (i in 1:length(colnames(fit2$coef))){
   lm <- rownames(subset(results,results[,i]!=0))
   if (length(lm)>0){
-    message (colnames(fit2$coef)[i])
-    adjustedPvalues=p.adjust(fit2$p.value[,i],method="fdr")
-    foldChange=abs(fit2$coef[,i])
+    message (colnames(fit2$coef)[i]," count talbes generation...")
+    #adjustedPvalues=p.adjust(fit2$p.value[,i],method="BH")
+    #foldChange=abs(fit2$coef[,i])
     #sigList=which(adjustedPvalues<=0.05)
     #sigList=sigList[order(foldChange[sigList])]
-    texp <- topTable(fit2,coef=i,number=10000,p.value=0.05,adjust="BH")
-    texp$FC <-  foldChange[rownames(texp)]
+    texp <- topTable(fit2,coef=i,number=NROW(fit2$coefficients),p.value=0.05,adjust="BH")
+    #texp$FC <-  foldChange[rownames(texp)]
+    texp$DE <- results[rownames(results)%in%rownames(texp),i]
     texp <- cbind(texp,fData(df.f)[rownames(texp),-c(1,2)])
-    write.table(texp,file=paste(o,colnames(fit2$coef)[i],'_',paste(cf,collapse='_'),'_fitZig.txt',sep=''),
+    write.table(texp,file=paste(opt$out,opt$level,'_',colnames(fit2$coef)[i],'_',paste(opt$conf,collapse='_'),'_fitZig.txt',sep=''),
                 quote=F,sep="\t",na="NA",row.names=T)
     DElist <- c(DElist,rownames(texp))
   }
@@ -115,7 +140,7 @@ dfc <- df.f[f,1:length(sampleNames(df.f))]
 ### Cluster analysis
 
 getClusters(MRcounts(dfc,norm=T),log2(MRcounts(dfc,norm=T)+1),
-            as.data.frame(pData(dfc)[[vs]]),method="K",path=o,prefix="",val=4)
+            as.data.frame(pData(dfc)[[opt$variable]]),method=opt$clmethod,path=opt$out,prefix=paste(opt$level,'_',sep=""),val=opt$clval)
 
 message("\nAll done!\n")
 

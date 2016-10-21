@@ -36,36 +36,53 @@ get_script_path <- function() {
 }
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
-#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
+toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
 #toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
-#p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
+
+packages(c("metagenomeSeq","optparse"))
+
+## Options ##
+p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
 #p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
-packages(c("metagenomeSeq"))
+
+option_list <- list(
+  make_option(c("-c","--counts"),type="character",default=paste(p,'16S.otus.count',sep=''),
+              help="Path to input counts file"),
+  make_option(c("-t","--taxonomy"),type="character",default=paste(p,'16S.otus.taxonomy',sep=''),
+              help="Path to input taxonomy file"),
+  make_option(c("-m","--metadata"),type="character",default=paste(p,'metadata',sep=''),
+              help="Path to input metadata file"),
+  make_option(c("-o","--out"),type="character",default=paste(p,'results/',sep=''),
+              help="Path to output directory [default %default]"),
+  make_option(c("-t","--shared"),type="double",default=0.2,
+              help="OTU presence; percentage of samples sharing each OTU. 0-1; default: %default"),
+  make_option(c("-d","--depth"),type="double",default=10,
+              help="Minimum depth count; default: %default counts per otu"),
+  make_option(c("-l","--level"),type="character",default="otu",
+              help="Taxonomical level of the analysis (otu,genus,family,order,class,phylum). default: %default")
+)
+parser <- OptionParser(usage = "%prog -i path/to/infile -o path/to/outdir [options]",option_list=option_list)
+opt <- parse_args(parser)
+#parse_args(parser,positional_arguments=1) 
+if (is.null(opt$counts)){stop(sprintf("There is not counts file specified"))
+}else if(is.null(opt$taxonomy)){stop(sprintf("There is not taxonomy file specified"))
+}else if(is.null(opt$metadata)){stop(sprintf("There is not metadata file specified"))}
 
 ###### end ######
 
 #* input *
-c <- commandArgs()[6] # paste(p,'16S.otus.count',sep='') #
-t <- commandArgs()[7] # paste(p,'16S.otus.taxonomy',sep='') # 
-m <- commandArgs()[8] # paste(p,'metadata',sep='') # 
-th <- commandArgs()[9] # 0.22 # percentage threshold of OTU's presence across the samples.
-d <- 10 # depth count threshold - by default.
-o <- commandArgs()[10] # 'paste(p,'results/',sep='')##
 
 
 message("Preparing the files...")
-metadata <- mothur.metadata(read.table(m,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
-taxonomy <- mothur.taxonomy(read.table(t,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
-counts <- mothur.counts(read.table(c,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
+metadata <- mothur.metadata(read.table(opt$metadata,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
+taxonomy <- mothur.taxonomy(read.table(opt$taxonomy,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
+counts <- mothur.counts(read.table(opt$counts,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
 counts <- subset(counts,taxonomy$Kingdom!="unclassified")
 taxonomy <- subset(taxonomy,taxonomy$Kingdom!="unclassified")
-
-length(colnames(counts))
-length(union(colnames(counts),rownames(metadata)))
-
+#length(colnames(counts));length(union(colnames(counts),rownames(metadata)))
 if(length(colnames(counts))!=length(union(colnames(counts),rownames(metadata)))){
-  message("**Error: Count-sample's names don't match with Metadata-sample's names!\n*Check the files and try again")
+  message("**Error: Count-sample's names don't match with Metadata-sample's names!\n\t*Check the files and try again\n")
   quit()
 }
 
@@ -73,11 +90,12 @@ ord = match(colnames(counts),rownames(metadata))
 metadata = metadata[ord,]
 data <- newMRexperiment(counts,phenoData=AnnotatedDataFrame(metadata),featureData=AnnotatedDataFrame(taxonomy))
 message("Filtering...")
-data.f <- filterData(data,present=round(as.numeric(th)*NROW(pData(data))),depth=d)
+if(as.numeric(opt$shared)==0){shared <- 1}else{shared <- round(as.numeric(opt$shared)*NROW(pData(data)))}
+data.f <- filterData(data,present=shared,depth=opt$depth)
 retained.info <- sum(fData(data.f)$Size)/sum(fData(data)$Size)
-message(paste(" - OTUs with less than ",d," counts and their presence in less than ",100*as.numeric(th),"% of the samples, were removed\n",
+message(paste(" - OTUs with less than ",opt$depth," counts and their presence in less than ",100*as.numeric(opt$shared),"% of the samples, were removed\n",
               " - From ",dim(MRcounts(data))[1]," OTUs, ",dim(MRcounts(data.f))[1]," OTUs remained\n",
-              " - Information retained: ",round(100*retained.info,2),"%; lost: ",round((100-100*retained.info),2),"%",sep=""))
+              " - Information (Reads) retained: ",round(100*retained.info,2),"%; lost: ",round((100-100*retained.info),2),"%",sep=""))
 ## Normalizing
 message("Normalizing...")
 p.f <- cumNormStatFast(data.f) # Calculates the percentile for which to sum counts up to and scale by.
@@ -85,7 +103,7 @@ data.f <- cumNorm(data.f,p=p.f)  # Calculates each column's quantile and calcula
 nf.f <- normFactors(data.f)
 # saving files
 message("Exporting files...")
-saveRDS(data.f,file=paste(o,'dataF.rds',sep=''))
+saveRDS(data.f,file=paste(opt$out,'dataF.rds',sep=''))
 message(" - dataF.rds -> Counts filtered and normalized - Cumulative-sum scaling normalization (Paulson et. al 2013)\n",
         " ** Data was successfully prepared! **")
 
