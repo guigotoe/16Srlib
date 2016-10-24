@@ -66,10 +66,8 @@ opt <- parse_args(parser)
 if (is.na(opt$counts)){stop(sprintf("There is not counts file specified"))
 }else if(is.na(opt$taxonomy)){stop(sprintf("There is not taxonomy file specified"))
 }else if(is.na(opt$metadata)){stop(sprintf("There is not metadata file specified"))}
+if(length(grep("/$",opt$out))==0) out <- paste(opt$out,"/",sep="")
 
-opt$out <- "/home/torres/ikmb_storage/projects/16Srlib_test/results"
-opt$out <- "/home/torres/ikmb_storage/projects/16Srlib_test/results/"
-grep("$[[:punct:]]",opt$out,fixed=T)
 
 ###### end ######
 
