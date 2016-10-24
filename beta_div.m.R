@@ -12,8 +12,8 @@
 ####################################################
 # Prepare and filters the data from mothur.
 # How to use:
-# Rscript beta_div.R -- help
-# Rscript beta_div.R -i ~/16Srlib_test/results/dataF.rds -o ~/16Srlib_test/results/ -e [options] 
+# Rscript beta_div.m.R -h
+# Rscript beta_div.m.R -i ~/16Srlib_test/results/dataF.rds -o ~/16Srlib_test/results/ -e [options] 
 #* requirements *#
 
 get_script_path <- function() {
@@ -46,31 +46,31 @@ packages(c("metagenomeSeq","reshape2","vegan","ggplot2","optparse"))
 #p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 
 option_list <- list(
-  make_option(c("-i","--data"),type="character",#default=paste(p,'results/dataF.rds',sep=''),
+  make_option(c("-i","--data"),action="store",type="character",default=NA,#paste(p,'results/dataF.rds',sep=''),
               help="Path to input rds file"),
-  make_option(c("-o","--out"),type="character",#default=paste(p,'results/',sep=''),
+  make_option(c("-o","--out"),action="store",type="character",default=NA,#paste(p,'.results',sep=''),
              help="Path to output directory [default %default]"),
-  make_option(c("-e","--exploratory"),action="store_true",
+  make_option(c("-e","--exploratory"),action="store_true",default=FALSE,
               help="Perform exploratory analysis"),
-  make_option(c("-m","--model"),action="store_true",
+  make_option(c("-m","--model"),action="store_true",default=FALSE,
               help="Build constrained model based on AIC selection criterion"),
-  make_option(c("-am","--assess_model"),type="character",default='',#NULL,
+  make_option(c("-am","--assess_model"),action="store",type="character",default=NA,#NULL,
               help="Model's terms assessed by permutation tests; for new model: vars,separated,by,comma"),
-  make_option(c("-C","--constraints"),type="character",default=NULL,
+  make_option(c("-C","--constraints"),action="store",type="character",default=NULL,
               help="Set of constraints used by -coa: vars,separated,by,comma"),
   make_option(c("-coa","--constrained_analysis"),action="store_true",default=FALSE,
               help="Perform constrained ordination analysis using -C constraints"),
-  make_option(c("-B","--factors"),type="character",default=NULL,
+  make_option(c("-B","--factors"),action="store",type="character",default=NULL,
               help="Set of factors used by -b: vars,separated,by,comma"),
-  make_option(c("-b","--beta"),action="store_true",default=FALSE,
+  make_option(c("-b","--beta"),action="store",action="store_true",default=FALSE,
               help="Perform beta diversty between -B variable classes"),
-  make_option(c("-f","--filter"),type="double",default=0.3,
+  make_option(c("-f","--filter"),action="store",type="double",default=0.3,
               help="Percentile as threshold of low abundant features ")
 )
 parser <- OptionParser(usage = "%prog -i path/to/infile -o path/to/outdir [options]",option_list=option_list)
 opt <- parse_args(parser)
 #parse_args(parser,positional_arguments=1) 
-if (is.null(opt$data)){stop(sprintf("There is not file specified"))}
+if (is.na(opt$data)){stop(sprintf("There is not file specified"))}
 
 #### Preparing the input data ####
 data <- readRDS(opt$data)

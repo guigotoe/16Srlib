@@ -11,8 +11,7 @@
 ####################################################
 # Prepare and filters the data from mothur.
 # How to use:
-# Rscript data_prep.R /path/counts_file /path/taxonomy_file /path/metadata.txt min_percentage_OTU_presence[0-1] /path/for/out_file/
-# Rscript data_prep.R /path/16s.an.shared /path/16s.an.cons.taxonomy /path/metadata.txt 0.05 /path/for/out_file/
+# Rscript data_prep.R -c ../16Srlib_test/16S.otus.count -x ../16Srlib_test/16S.otus.taxonomy -m ../16Srlib_test/metadata -o ../16Srlib_test/results
 #
 #* requirements *#
 
@@ -36,43 +35,45 @@ get_script_path <- function() {
 }
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
-toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
+#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
 #toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
 
 packages(c("metagenomeSeq","optparse"))
 
 ## Options ##
-p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
+#p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
 #p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 
+
 option_list <- list(
-  make_option(c("-c","--counts"),type="character",default=paste(p,'16S.otus.count',sep=''),
+  make_option(c("-c","--counts"),action="store",type="character",default=NA,#paste(p,'16S.otus.count',sep=''),
               help="Path to input counts file"),
-  make_option(c("-t","--taxonomy"),type="character",default=paste(p,'16S.otus.taxonomy',sep=''),
+  make_option(c("-x","--taxonomy"),action="store",type="character",default=NA,#paste(p,'16S.otus.taxonomy',sep=''),
               help="Path to input taxonomy file"),
-  make_option(c("-m","--metadata"),type="character",default=paste(p,'metadata',sep=''),
+  make_option(c("-m","--metadata"),action="store",type="character",default=NA,#paste(p,'metadata',sep=''),
               help="Path to input metadata file"),
-  make_option(c("-o","--out"),type="character",default=paste(p,'results/',sep=''),
+  make_option(c("-o","--out"),action="store",type="character",default=paste(p,'results',sep=''),
               help="Path to output directory [default %default]"),
   make_option(c("-t","--shared"),type="double",default=0.2,
               help="OTU presence; percentage of samples sharing each OTU. 0-1; default: %default"),
   make_option(c("-d","--depth"),type="double",default=10,
-              help="Minimum depth count; default: %default counts per otu"),
-  make_option(c("-l","--level"),type="character",default="otu",
-              help="Taxonomical level of the analysis (otu,genus,family,order,class,phylum). default: %default")
+              help="Minimum depth count; default: %default counts per otu")
 )
 parser <- OptionParser(usage = "%prog -i path/to/infile -o path/to/outdir [options]",option_list=option_list)
 opt <- parse_args(parser)
 #parse_args(parser,positional_arguments=1) 
-if (is.null(opt$counts)){stop(sprintf("There is not counts file specified"))
-}else if(is.null(opt$taxonomy)){stop(sprintf("There is not taxonomy file specified"))
-}else if(is.null(opt$metadata)){stop(sprintf("There is not metadata file specified"))}
+if (is.na(opt$counts)){stop(sprintf("There is not counts file specified"))
+}else if(is.na(opt$taxonomy)){stop(sprintf("There is not taxonomy file specified"))
+}else if(is.na(opt$metadata)){stop(sprintf("There is not metadata file specified"))}
+
+opt$out <- "/home/torres/ikmb_storage/projects/16Srlib_test/results"
+opt$out <- "/home/torres/ikmb_storage/projects/16Srlib_test/results/"
+grep("$[[:punct:]]",opt$out,fixed=T)
 
 ###### end ######
 
 #* input *
-
 
 message("Preparing the files...")
 metadata <- mothur.metadata(read.table(opt$metadata,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
