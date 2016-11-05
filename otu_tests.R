@@ -36,27 +36,27 @@ get_script_path <- function() {
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
 #toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
-toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
+#toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
 
 packages(c("metagenomeSeq","reshape2","optparse"))
 
 ## Options ##
 #p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
-p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
+#p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 
 option_list <- list(
-  make_option(c("-i","--data"),type="character",default=paste(p,'results/dataF.rds',sep=''),
+  make_option(c("-i","--data"),type="character",default=NA,#paste(p,'results/dataF.rds',sep=''),
               help="Path to input rds file"),
-  make_option(c("-o","--out"),type="character",default=paste(p,'results/',sep=''),
+  make_option(c("-o","--out"),type="character",default="./",#paste(p,'results/',sep=''),
               help="Path to output directory [default %default]"),
-  make_option(c("-c","--conf"),type="character",default='Arcilla',
+  make_option(c("-c","--conf"),type="character",default=NA,#'Arcilla',
               help="Confounder variables - separated by comma"),
-  make_option(c("-v","--variable"),type="character",default='Salinity',
+  make_option(c("-v","--variable"),type="character",default=NA,#'Salinity',
               help="Variable of association"),
   make_option(c("-t","--shared"),type="double",default=0.9,
               help="Sample's OTU-shared percentage. 0-1; default: %default"),
-  make_option(c("-l","--level"),type="character",default="Family",
+  make_option(c("-l","--level"),type="character",default="otu",
               help="Taxonomical level of the analysis (otu,Genus,Family,Order,Class,Phylum). default: %default"),
   make_option(c("-m","--clmethod"),type="character",default='K',
               help="Clusterization method.(PAM,P,K,Km)\nUse K-means clustering to define K feature sets \n
@@ -69,7 +69,7 @@ option_list <- list(
 parser <- OptionParser(usage = "%prog -i path/to/infile -o path/to/outdir [options]",option_list=option_list)
 opt <- parse_args(parser)
 #parse_args(parser,positional_arguments=1) 
-if (is.null(opt$data)){stop(sprintf("There is not data file specified"))}
+if (is.na(opt$data)){stop(sprintf("There is not data file specified"))}
 opt$conf <- unlist(strsplit(opt$conf,','))
 
 ###### end ######

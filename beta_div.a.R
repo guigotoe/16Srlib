@@ -36,33 +36,33 @@ get_script_path <- function() {
 }
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
-#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
+toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
 #toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
 packages(c("metagenomeSeq","reshape2","vegan","ggplot2","optparse"))
 
 ## Options ##
-#p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
+p <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/age/'
 #p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 
 option_list <- list(
-  make_option(c("-i","--data"),action="store",type="character",default=NA,#paste(p,'age/dataF.rds',sep=''),
+  make_option(c("-i","--data"),action="store",type="character",default=paste(p,'dataF.rds',sep=''),#NA,#
               help="Path to input rds file"),
-  make_option(c("-o","--out"),action="store",type="character",default="./",#paste(p,'age',sep=''),
+  make_option(c("-o","--out"),action="store",type="character",default=paste(p,'beta',sep=''),#"./",#
              help="Path to output directory [default %default]"),
   make_option(c("-e","--exploratory"),action="store_true",default="NA",
               help="Perform exploratory analysis"),
-  make_option(c("-m","--model"),action="store_true",default="NA",
+  make_option(c("-m","--model"),action="store_true",default=FALSE,
               help="Build constrained model based on AIC selection criterion"),
   make_option(c("-am","--assess_model"),action="store",type="character",default=NA,#NULL,
               help="Model's terms assessed by permutation tests; for new model: vars,separated,by,comma"),
-  make_option(c("-C","--constraints"),action="store",type="character",default=NULL,
+  make_option(c("-C","--constraints"),action="store",type="character",default=NA,
               help="Set of constraints used by -coa: vars,separated,by,comma"),
-  make_option(c("-coa","--constrained_analysis"),action="store_true",default="NA",
+  make_option(c("-coa","--constrained_analysis"),action="store_true",default=FALSE,
               help="Perform constrained ordination analysis using -C constraints"),
   make_option(c("-a","--factors"),action="store",type="character",default=NULL,
               help="Set of factors used by -b: vars,separated,by,comma"),
-  make_option(c("-b","--beta"),action="store_true",default='NA',
+  make_option(c("-b","--beta"),action="store_true",default=FALSE,
               help="Perform beta diversty between -a variable classes"),
   make_option(c("-f","--filter"),action="store",type="double",default=0.3,
               help="Percentile as threshold of low abundant features ")
@@ -71,6 +71,7 @@ parser <- OptionParser(usage = "%prog -i path/to/infile -o path/to/outdir [optio
 opt <- parse_args(parser)
 #parse_args(parser,positional_arguments=1) 
 if (is.na(opt$data)){stop(sprintf("There is not file specified"))}
+if(length(grep("/$",opt$out))==0) opt$out <- paste(opt$out,"/",sep="")
 
 #### Preparing the input data ####
 data <- readRDS(opt$data)
@@ -83,9 +84,16 @@ dataTrimed <- data[-totrim,]
 
 dfc0 <- t(MRcounts(dataTrimed,norm=T))
 dfc <- t(log2(MRcounts(dataTrimed,norm=T)+1))
+#ptrim <- pData(dataTrimed)
+#ptrim$group <- as.factor(unlist(apply(ptrim,1,function(x){
+#  if (as.numeric(x[["Age"]]) <= 40) {return("G1")
+#  }else if (as.numeric(x[["Age"]]) > 40 & as.numeric(x[["Age"]]) <= 60){ return("G2")
+#  }else if (as.numeric(x[["Age"]]) > 60 & as.numeric(x[["Age"]]) <= 80){ return("G3")
+#  }else if (as.numeric(x[["Age"]]) > 80) return("G4")
+#})))
 
-q <- pData(dataTrimed)[, !sapply(pData(dataTrimed), is.factor)]
-c <- pData(dataTrimed)[, sapply(pData(dataTrimed), is.factor)]
+q <- pData(dataTrimed)[, !sapply(pData(dataTrimed), is.factor),drop=F]
+c <- pData(dataTrimed)[, sapply(pData(dataTrimed), is.factor),drop=F]
 #taxa <- fData(df)[,which(colnames(fData(df))%in%c("Phylum","Class","Order","Family"))] 
 #rankindex(scale(x),t(MRcounts(df,norm=T)),c("euc","man","bray","jac","kul"))
 
@@ -104,23 +112,26 @@ if (opt$exploratory==T){
   
   nmds <- metaMDS(dfc,trace=F)
   pdf(paste(opt$out,"e02_NMDS.pdf",sep=''),width=8, height=5)
-  ordiplot(nmds,type="t",display="sites")
+  ordiplot(nmds,type="p",display="sites")
+  #with(c,ordiellipse(nmds,group,kind="se",conf=0.95))
+  #with(c,ordispider(nmds,group,col="blue",label="T"))
+  #with(c,ordihull(nmds,group,col="blue",lty=2))
   dev.off()
-  ef <- envfit(nmds,q,permu=999)
+  ef <- envfit(nmds,q[,-which(colnames(q)=="libsize"),drop=F],permu=999)
   sink(file=paste(opt$out,"e_Envfitting2NMDS.txt",sep='')) 
   ef 
   sink(NULL) 
   pdf(paste(opt$out,"e03_EnvNMDS.pdf",sep=''),width=8, height=5)
-  plot(nmds,display="sites")
+  plot(nmds,type="p",display="sites")
   plot(ef,p.max=0.05)
   dev.off()
   
   pca <- rda(dfc,scale=TRUE)
   pdf(paste(opt$out,"e04_PCA.pdf",sep=''),width=8, height=5)
   plot(pca)
-  text(pca,display="sites")
+  #text(pca,type="p",display="sites")
   dev.off()
-  ef <- envfit(pca,q,permu=999)
+  ef <- envfit(pca,q[,-which(colnames(q)=="libsize"),drop=F],permu=999)
   sink(file=paste(opt$out,"e_Envfitting2PCA.txt",sep='')) 
   ef 
   sink(NULL) 
@@ -130,33 +141,62 @@ if (opt$exploratory==T){
   plot(ef,p.max=0.05)
   dev.off()
   
+  pca.c <- rda(dfc~group+Condition(Gender),c,scale=T)
+  plot(pca.c,display="sites",xlab=paste("PCA1 ",round(pca.c$CA$eig[1]/sum(pca.c$CA$eig),2)),
+       ylab=paste("PCA2 ",round(pca.c$CA$eig[2]/sum(pca.c$CA$eig),2)))
+  with(c,ordiellipse(pca.c,group,kind="se",conf=0.95))
+  with(c,ordispider(pca.c,group,col="blue",label="T"))
+  with(c,ordihull(pca.c,group,col="blue",lty=2))
+  
   ca <- cca(dfc)
   pdf(paste(opt$out,"e06_CA.pdf",sep=''),width=8, height=5)
   plot(ca)
-  text(ca,display="sites")
+  #text(ca,display="sites")
   dev.off()
-  ef <- envfit(ca,q,permu=999)
+  ef <- envfit(ca,q[,-which(colnames(q)=="libsize"),drop=F],permu=999)
   sink(file=paste(opt$out,"e_Envfitting2CA.txt",sep='')) 
   ef 
   sink(NULL) 
+  cols <- c("steelblue", "darkred", "darkgreen","green")
   pdf(paste(opt$out,"e07_EnvCA.pdf",sep=''),width=8, height=5)
-  plot(ca,display="sites",xlab=paste("CA1:",round(ca$CA$eig[1]/sum(ca$CA$eig),2)),
-       ylab=paste("CA2:",round(ca$CA$eig[2]/sum(ca$CA$eig),2)))
+  plot(ca,xlab=paste("CA1:",round(ca$CA$eig[1]/sum(ca$CA$eig),2)),
+       ylab=paste("CA2:",round(ca$CA$eig[2]/sum(ca$CA$eig),2)),type="n")
+  with(c, points(ca, display = "sites", col = cols[group],pch = 16,bg=cols[group]))
+  with(c,ordiellipse(ca,group,kind="se",conf=0.95))
+  with(c,ordispider(ca,group,label=TRUE))
+  with(c,ordihull(ca,group,lty=2))
   plot(ef,p.max=0.05)
   dev.off()
-
+  
+  
+  ca.c <- cca(dfc~group+Condition(Gender),c)
+  ef <- envfit(ca.c,q[,-which(colnames(q)=="libsize"),drop=F],permu=999,na.rm=T)
+  cols <- c("steelblue", "darkred", "darkgreen","green")
+  pdf(paste(opt$out,"e07_EnvCA_C.pdf",sep=''),width=8, height=5)
+  plot(ca.c,xlab=paste("CA1 ",round(summary(ca.c)$concont$importance[2,1],2)),
+       ylab=paste("CA2 ",round(summary(ca.c)$concont$importance[2,2],2)),type="n")
+  with(c, points(ca.c, display = "sites", col = cols[group],pch = 16,bg=cols[group]))
+  with(c,ordiellipse(ca.c,group,kind="se",conf=0.95))
+  with(c,ordispider(ca.c,group,label=TRUE))
+  with(c,ordihull(ca.c,group,lty=2))
+  plot(ef,p.max=0.05)
+  dev.off()
+  
   dca <- decorana(dfc)
   pdf(paste(opt$out,"e08_DCA.pdf",sep=''),width=8, height=5)
   plot(dca)
-  text(dca,display="sites")
+  #text(dca,display="sites")
   dev.off()
-  ef <- envfit(dca,q,permu=999)
+  ef <- envfit(dca,q[,-which(colnames(q)=="libsize"),drop=F],permu=999)
   sink(file=paste(opt$out,"e_Envfitting2DCA.txt",sep='')) 
   ef 
   sink(NULL) 
   pdf(paste(opt$out,"e09_EnvDCA.pdf",sep=''),width=8, height=5)
   plot(dca,display="sites")
   plot(ef,p.max=0.05)
+  #with(c,ordiellipse(dca,group,kind="se",conf=0.95))
+  #with(c,ordispider(dca,group,col="blue",label="T"))
+  #with(c,ordihull(dca,group,col="blue",lty=2))
   dev.off()
   ## factors
   #ef <- envfit(ca,y,permu=999)
