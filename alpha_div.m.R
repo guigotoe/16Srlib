@@ -36,20 +36,20 @@ get_script_path <- function() {
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
 #toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
-#toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
+toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
 #p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
-#p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
+p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 packages(c("metagenomeSeq","vegan","ggplot2","RColorBrewer","RAM","PoiClaClu","zCompositions","reshape2"))
 
 ###### end ######
 
 #* input *
 
-f <- commandArgs()[6] # paste(p,'results/dataF.rds',sep='') #
-vs <- commandArgs()[7]# 'Salinity,Textura' #
+f <- paste(p,'age/dataF.rds',sep='')#commandArgs()[6] # paste(p,'results/dataF.rds',sep='') #
+vs <- 'group,Gender'#commandArgs()[7]# 'Salinity,Textura' #
 vs <- unlist(strsplit(vs,','))
-o <- commandArgs()[8] # paste(p,'results/',sep='') #
+o <- paste(p,'age/',sep='')#commandArgs()[8] # paste(p,'results/',sep='') #
 ## ##
 df <- readRDS(f)
 dfc <- MRcounts(df,norm=T)

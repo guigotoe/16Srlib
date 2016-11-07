@@ -136,8 +136,16 @@ taxprop <- function(dfp,v,tl,o,limit=0.01,u=F){
   ggsave(paste(gsub(" ",'_',title),ut,'_',v,'.pdf',sep=''),plot=distplot,path=o,width=8,height=5,device="pdf")
   
 }
+DEdata <- counts
+ldata <- counts.l
+method <- opt$clmethod
+design <- pData(df.f)[c("Age",opt$variable)]
+path <- opt$out
+prefix <- paste(opt$level,'_',sep="")
+val=opt$clval
 
-getClusters <- function(DEdata,ldata,method=c("PAM","P","K","Km"),design,path,prefix="",w=2,val=NULL,JSD=F){
+
+getClusters <- function(DEdata,ldata,method=c("PAM","P","K","Km"),design,path,prefix="",w=2,val=NULL,JSD=F,hs=80){
   packages(c("clusterSim","cluster"))
   # Recomended options: method PAM, val=NULL
   myheatcol = colorpanel(75, 'blue','grey','red')
@@ -199,9 +207,12 @@ getClusters <- function(DEdata,ldata,method=c("PAM","P","K","Km"),design,path,pr
   gene_partition_assignments = pam(as.dist(gene_dist),val, diss=TRUE)$clustering
   file_name <- paste("clusters_fixed_",dis,"_PAM_",val,sep="")
   }
+  sample_partition_assignments <- cutree(as.hclust(hc_samples), h=hs/100*max(hc_samples$height))
+  file_name <- paste("sample_clusters_fixed_",dis,"_P_",hs,sep="")
   
   max_cluster_count = max(gene_partition_assignments)
   outdir <- paste(path,prefix,file_name,sep='')
+  if(dir.exists(outdir)){unlink(outdir, recursive = T)}
   dir.create(outdir)
   colourCount = length(unique(gene_partition_assignments))
   #partition_colors = rainbow(colourCount, start=0.4, end=0.95)
@@ -209,15 +220,27 @@ getClusters <- function(DEdata,ldata,method=c("PAM","P","K","Km"),design,path,pr
   gene_colors_dframe = data.frame(clusters=gene_partition_assignments, colors=partition_colors[gene_partition_assignments])
   write.table(gene_colors_dframe, file=paste(path,prefix,file_name,".heatmap.gene_cluster_colors.dat",sep=''), quote=F, sep='  ')
   gene_colors = as.matrix(partition_colors[gene_partition_assignments])
+  
+  sampleColors= colorRampPalette(brewer.pal(8, "Set1"))(length(unique(sample_partition_assignments)))
+  sample_colors_dframe = data.frame(clusters=sample_partition_assignments, colors=sampleColors[sample_partition_assignments])
+  sample_colors = t(as.matrix(sampleColors[sample_partition_assignments]))
+  
+  pdf(paste(path,prefix,file_name,"unclusSamples.heatmap.pdf",sep=''))
+  heatmap.3(data, dendrogram='row', Rowv=as.dendrogram(hc_genes), Colv=hc_samples$labels, col=myheatcol, 
+            RowSideColors=gene_colors, scale="none", density.info="none", trace="none", key=TRUE, cexCol=1, margins=c(10,10),
+            main=paste('Heatmap-gene clusters',sep=""),labCol=design[,1])
+  dev.off()
+
   pdf(paste(path,prefix,file_name,".heatmap.pdf",sep=''))
   heatmap.3(data, dendrogram='both', Rowv=as.dendrogram(hc_genes), Colv=as.dendrogram(hc_samples), col=myheatcol, 
-            RowSideColors=gene_colors, scale="none", density.info="none", trace="none", key=TRUE, cexCol=1, margins=c(10,10),
+            RowSideColors=gene_colors, ColSideColors=sample_colors,scale="none", density.info="none", trace="none", key=TRUE, cexCol=1, margins=c(10,10),
             main=paste('Heatmap-gene clusters',sep=""),labCol=design[,1])
   dev.off()
   
   gene_names = rownames(data)
   num_cols = length(data[1,])
   raw_outdir <- paste(outdir,"/rawCounts",sep='')
+  if(dir.exists(raw_outdir)){unlink(raw_outdir, recursive = T)}
   dir.create(raw_outdir)
   for (i in 1:max_cluster_count) {
     partition_i = (gene_partition_assignments == i)

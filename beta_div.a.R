@@ -36,14 +36,14 @@ get_script_path <- function() {
 }
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
-toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
-#toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
+#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
+toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
-packages(c("metagenomeSeq","reshape2","vegan","ggplot2","optparse"))
+packages(c("metagenomeSeq","reshape2","vegan","ggplot2","optparse","matrixStats"))
 
 ## Options ##
-p <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/age/'
-#p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
+#p <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/age/'
+p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/age/'
 
 option_list <- list(
   make_option(c("-i","--data"),action="store",type="character",default=paste(p,'dataF.rds',sep=''),#NA,#
@@ -75,15 +75,14 @@ if(length(grep("/$",opt$out))==0) opt$out <- paste(opt$out,"/",sep="")
 
 #### Preparing the input data ####
 data <- readRDS(opt$data)
-dlog <- log2(MRcounts(data)+1)
-dlogm <- sort.default(unlist(apply(dlog,1,function(x) mean(x))))
-csnorm <- cumsum(dlogm)/sum(dlogm)
-totrim <- names(csnorm[which(csnorm<=quantile(csnorm,probs=opt$filter))])
+mat <- MRcounts(data,norm=T)
+otuMeans <- rowMeans(mat)
+otuMeans <- otuMeans[order(otuMeans,decreasing=F)]
+totrim <- names(otuMeans)[which(otuMeans<=quantile(otuMeans,probs=opt$filter))]
 totrim <- match(totrim,rownames(data))
 dataTrimed <- data[-totrim,]
 
-dfc0 <- t(MRcounts(dataTrimed,norm=T))
-dfc <- t(log2(MRcounts(dataTrimed,norm=T)+1))
+dfc <- t(MRcounts(dataTrimed,norm=T,log=T))
 #ptrim <- pData(dataTrimed)
 #ptrim$group <- as.factor(unlist(apply(ptrim,1,function(x){
 #  if (as.numeric(x[["Age"]]) <= 40) {return("G1")
@@ -91,7 +90,9 @@ dfc <- t(log2(MRcounts(dataTrimed,norm=T)+1))
 #  }else if (as.numeric(x[["Age"]]) > 60 & as.numeric(x[["Age"]]) <= 80){ return("G3")
 #  }else if (as.numeric(x[["Age"]]) > 80) return("G4")
 #})))
-
+pData(dataTrimed)$LLI <-rep('normal',NROW(pData(dataTrimed)))
+pData(dataTrimed)$LLI[pData(dataTrimed)$Age>90] <- "lli"
+pData(dataTrimed)$LLI <- as.factor(pData(dataTrimed)$LLI)
 q <- pData(dataTrimed)[, !sapply(pData(dataTrimed), is.factor),drop=F]
 c <- pData(dataTrimed)[, sapply(pData(dataTrimed), is.factor),drop=F]
 #taxa <- fData(df)[,which(colnames(fData(df))%in%c("Phylum","Class","Order","Family"))] 
@@ -101,14 +102,20 @@ c <- pData(dataTrimed)[, sapply(pData(dataTrimed), is.factor),drop=F]
 
 if (opt$exploratory==T){
   pdf(paste(opt$out,"e01_data_filtering.pdf",sep=''),width=8, height=5)
-  plot(csnorm)
-  abline(h=quantile(csnorm,probs=opt$filter))
+  plot(otuMeans)
+  abline(h=quantile(otuMeans,probs=opt$filter))
   dev.off()
   #dist <- vegdist(dfc)
   # 1) Direction of the gradient: The arrow points of the direction of most rapid change 
   #    in the environmental variable.
   # 2) Strength of the gradient: The length of the arrow is proportional to the correlation 
   #    between ordination and environmental variable.
+  
+  distmat <- vegdist(dfc,"bray")
+  ord = cmdscale(distmat,k = max(2))
+  xl = paste("MDS component:",1)
+  yl = paste("MDS component:",2)
+  plot(ord[,2],ylab=yl,xlab=xl)
   
   nmds <- metaMDS(dfc,trace=F)
   pdf(paste(opt$out,"e02_NMDS.pdf",sep=''),width=8, height=5)
@@ -122,7 +129,8 @@ if (opt$exploratory==T){
   ef 
   sink(NULL) 
   pdf(paste(opt$out,"e03_EnvNMDS.pdf",sep=''),width=8, height=5)
-  plot(nmds,type="p",display="sites")
+  plot(nmds,type="n")
+  with(c, points(nmds, display = "sites", col = cols[group],pch = 16,bg=cols[group]))
   plot(ef,p.max=0.05)
   dev.off()
   
@@ -157,28 +165,30 @@ if (opt$exploratory==T){
   sink(file=paste(opt$out,"e_Envfitting2CA.txt",sep='')) 
   ef 
   sink(NULL) 
-  cols <- c("steelblue", "darkred", "darkgreen","green")
+  cols <- c("blue", "orange", "green","red")
   pdf(paste(opt$out,"e07_EnvCA.pdf",sep=''),width=8, height=5)
-  plot(ca,xlab=paste("CA1:",round(ca$CA$eig[1]/sum(ca$CA$eig),2)),
-       ylab=paste("CA2:",round(ca$CA$eig[2]/sum(ca$CA$eig),2)),type="n")
-  with(c, points(ca, display = "sites", col = cols[group],pch = 16,bg=cols[group]))
+  v1 <- round(ca$CA$eig[1]/sum(ca$CA$eig),2)
+  v2 <- round(ca$CA$eig[2]/sum(ca$CA$eig),2)
+  plot(ca,xlab=paste("CA1:",v1),ylab=paste("CA2:",v2),type="n")
+  with(c, points(ca, display = "sites", col = cols[group],pch=c(4,16)[as.numeric(LLI)],bg=cols[group]))
   with(c,ordiellipse(ca,group,kind="se",conf=0.95))
   with(c,ordispider(ca,group,label=TRUE))
-  with(c,ordihull(ca,group,lty=2))
+  #with(c,ordihull(ca,group,lty=2))
   plot(ef,p.max=0.05)
   dev.off()
   
   
   ca.c <- cca(dfc~group+Condition(Gender),c)
   ef <- envfit(ca.c,q[,-which(colnames(q)=="libsize"),drop=F],permu=999,na.rm=T)
-  cols <- c("steelblue", "darkred", "darkgreen","green")
+  cols <- c("blue", "orange", "green","red")
   pdf(paste(opt$out,"e07_EnvCA_C.pdf",sep=''),width=8, height=5)
-  plot(ca.c,xlab=paste("CA1 ",round(summary(ca.c)$concont$importance[2,1],2)),
-       ylab=paste("CA2 ",round(summary(ca.c)$concont$importance[2,2],2)),type="n")
-  with(c, points(ca.c, display = "sites", col = cols[group],pch = 16,bg=cols[group]))
+  v1 <- ''#round(summary(ca.c)$concont$importance[2,1],2)
+  v2 <- ''#round(summary(ca.c)$concont$importance[2,2],2)
+  plot(ca.c,xlab=paste("CA1 ",v1),ylab=paste("CA2 ",v2),type="n")
+  with(c, points(ca.c, display = "sites", col = cols[group],pch=c(4,16)[as.numeric(LLI)],bg=cols[group]))
   with(c,ordiellipse(ca.c,group,kind="se",conf=0.95))
   with(c,ordispider(ca.c,group,label=TRUE))
-  with(c,ordihull(ca.c,group,lty=2))
+  #with(c,ordihull(ca.c,group,lty=2))
   plot(ef,p.max=0.05)
   dev.off()
   

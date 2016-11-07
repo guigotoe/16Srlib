@@ -52,19 +52,21 @@ option_list <- list(
               help="Path to output directory [default %default]"),
   make_option(c("-c","--conf"),type="character",default='Gender',#'Arcilla',#
               help="Confounder variables - separated by comma"),
-  make_option(c("-v","--variable"),type="character",default='group',#'Salinity',#
+  make_option(c("-v","--variable"),type="character",default='LLI',#'Salinity',#
               help="Variable of association"),
-  make_option(c("-t","--shared"),type="double",default=0.05,
+  make_option(c("-t","--shared"),type="double",default=0.04,
               help="Sample's OTU-shared percentage. 0-1; default: %default"),
   make_option(c("-l","--level"),type="character",default="otu",
               help="Taxonomical level of the analysis (otu,Genus,Family,Order,Class,Phylum). default: %default"),
   make_option(c("-m","--clmethod"),type="character",default='P',
               help="Clusterization method.(PAM,P,K,Km)\nUse K-means clustering to define K feature sets \n
               ; default: %default"),
-  make_option(c("-n","--clval"),type="double",default=0.3,
+  make_option(c("-n","--clval"),type="double",default=80,
               help="Number of clusters (K method) or \
               cut the hierarchically clustered tree at -n percent height of the tree (P method).\n
-              default: %default")
+              default: %default"),
+  make_option(c("-p","--prefix"),type="character",default='LLI',#'Arcilla',#
+              help="files prefix")
 )
 parser <- OptionParser(usage = "%prog -i path/to/infile -o path/to/outdir [options]",option_list=option_list)
 opt <- parse_args(parser)
@@ -74,11 +76,12 @@ opt$conf <- unlist(strsplit(opt$conf,','))
 
 ###### end ######
 df.r <- readRDS(opt$data)
+pData(df.r)$LLI <-rep('normal',NROW(pData(df.r)))
+pData(df.r)$LLI[pData(df.r)$Age>90] <- "lli"
+pData(df.r)$LLI <- as.factor(pData(df.r)$LLI)
 #df.rr <- readRDS(opt$data)
 #samplesToKeep <- which(pData(df.rr)$Gender == "female")
 #df.r = df.rr[,samplesToKeep]
-
-
 
 if (opt$level != "otu"){df <- aggTax(df.r,lvl=opt$level,norm=T)} else {df <- df.r}
 ### differential abundance testing -- based on OTUs-shared by 90% of the samples #### 
@@ -144,9 +147,31 @@ if (opt$level != "otu"){
   f <- which(rownames(MRcounts(df.f))%in%DElist.1)
   dfc <- df.f[f,1:length(sampleNames(df.f))]
   
+  counts <- MRcounts(dfc,norm=T)
+  counts.l <- MRcounts(dfc,norm=T,log=T)
+  pData(dfc) <- pData(dfc)[order(pData(dfc)$Age),]
+  counts <- counts[,rownames(pData(dfc)[order(pData(dfc)$Age),])]
+  counts.l <- counts.l[,rownames(pData(dfc)[order(pData(dfc)$Age),])]
   ### Cluster analysis
-  getClusters( MRcounts(df.f,norm=T), MRcounts(df.f,norm=T,log=T),
-              as.data.frame(pData(df.f)[[opt$variable]]),method=opt$clmethod,path=opt$out,prefix=paste(opt$level,'_',sep=""),val=opt$clval)
+  getClusters(counts,counts.l,
+              design=pData(dfc)[c("Age",opt$variable)],method=opt$clmethod,path=opt$out,prefix=paste(opt$level,'_',opt$prefix,'_',sep=""),val=opt$clval)
+  ## By age#
+  dfc <- df.f[f,1:length(sampleNames(df.f))]
+  for (i in levels(pData(dfc)$Gender)){
+    samplesToKeep <- which(pData(dfc)$Gender==i)
+    dfc.g <- dfc[,samplesToKeep]
+    counts <- MRcounts(dfc.g,norm=T)
+    counts.l <- MRcounts(dfc.g,norm=T,log=T)
+    pData(dfc.g) <- pData(dfc.g)[order(pData(dfc.g)$Age),]
+    counts <- counts[,rownames(pData(dfc.g))]
+    counts.l <- counts.l[,rownames(pData(dfc.g)[order(pData(dfc.g)$Age),])]
+    ### Cluster analysis
+    getClusters(counts,counts.l,
+                design=pData(dfc.g)[c("Age",opt$variable)],method=opt$clmethod,path=opt$out,prefix=paste(opt$level,'_',opt$prefix,'_',i,'_',sep=""),val=opt$clval)
+    
+  } 
+    
+  
   
 } else {
   ## ** ##

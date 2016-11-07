@@ -86,7 +86,6 @@ if(length(colnames(counts))!=length(union(colnames(counts),rownames(metadata))))
   message("**Error: Count-sample's names don't match with Metadata-sample's names!\n\t*Check the files and try again\n")
   quit()
 }
-
 data <- newMRexperiment(counts,phenoData=AnnotatedDataFrame(metadata),featureData=AnnotatedDataFrame(taxonomy))
 counts.nl <- MRcounts(data,norm=T,log=T)
 message("Filtering...")
@@ -130,9 +129,10 @@ for (i in 1:NROW(counts.f1.n)){
 data.f2 <- data.f1[featuresToKeep,]
 data.f <- filterData(data.f2,present=shared,depth=opt$depth)
 retained.info <- sum(fData(data.f)$Size)/sum(fData(data)$Size)
-message(paste(" - OTUs with mean count less than ",dep," and their presence in less than ",100*as.numeric(opt$shared),"% of the samples, were removed\n",
-              " - From ",dim(MRcounts(data))[1]," OTUs, ",dim(MRcounts(data.f))[1]," OTUs remained\n",
-              " - Information (Reads) retained: ",round(100*retained.info,2),"%; lost: ",round((100-100*retained.info),2),"%",sep=""))
+fData(data.f) <- droplevels(fData(data.f))
+phylum <- length(levels(as.factor(fData(data.f)$Phylum))); class <- length(levels(as.factor(fData(data.f)$Class)))
+order <- length(levels(as.factor(fData(data.f)$Order))); family <- length(levels(as.factor(fData(data.f)$Family)))
+genus <- length(levels(as.factor(fData(data.f)$Genus)));otu <- length(levels(as.factor(fData(data.f)$OTU)))
 ## Normalizing
 message("Normalizing...")
 p.f <- cumNormStatFast(data.f) # Calculates the percentile for which to sum counts up to and scale by.
@@ -144,7 +144,13 @@ saveRDS(data.f,file=paste(opt$out,'dataF.rds',sep=''))
 saveRDS(MRcounts(data.f),file=paste(opt$out,'otu_counts.rds',sep=''))
 saveRDS(pData(data.f),file=paste(opt$out,'phenotype.rds',sep=''))
 saveRDS(fData(data.f),file=paste(opt$out,'taxonomy.rds',sep=''))
-message(" - dataF.rds -> Counts filtered and normalized - Cumulative-sum scaling normalization (Paulson et. al 2013)\n",
-        " ** Data was successfully prepared! **")
+output <- paste(paste(" - An OTU was removed when its average count was less than ",dep," and when it was present in less than the ",100*as.numeric(opt$shared),"% of the samples\n",
+                      " - From ",dim(MRcounts(data))[1]," OTUs, ",dim(MRcounts(data.f))[1]," OTUs remained\n",
+                      " - Information (Reads) retained: ",round(100*retained.info,2),"%; lost: ",round((100-100*retained.info),2),"%",sep=""),"\n",
+                "- Taxonomic information:\n","   Phylum: ",phylum,"\tClass: ",class,"\tOrder: ",order,"\tFamily: ",family,"\tGenus: ",genus,"\tOTU: ",otu,"\n",
+                "- dataF.rds -> Counts filtered and normalized - Cumulative-sum scaling normalization (Paulson et. al 2013)\n",
+                "   \n** Data was successfully prepared! **\n")
+message(output)
+cat(output,file=paste(opt$out,'Report_data_prep.txt',sep=''), append=F)
 
 
