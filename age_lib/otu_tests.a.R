@@ -39,7 +39,7 @@ toolbox <- paste(sep="/", script.basename, "toolbox.R")
 toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
 
-packages(c("metagenomeSeq","reshape2","optparse"))
+packages(c("metagenomeSeq","reshape2","optparse","pheatmap"))
 
 ## Options ##
 #p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
@@ -54,7 +54,7 @@ option_list <- list(
               help="Confounder variables - separated by comma"),
   make_option(c("-v","--variable"),type="character",default='LLI',#'Salinity',#
               help="Variable of association"),
-  make_option(c("-t","--shared"),type="double",default=0.04,
+  make_option(c("-t","--shared"),type="double",default=0.15,
               help="Sample's OTU-shared percentage. 0-1; default: %default"),
   make_option(c("-l","--level"),type="character",default="otu",
               help="Taxonomical level of the analysis (otu,Genus,Family,Order,Class,Phylum). default: %default"),
@@ -134,7 +134,7 @@ if (opt$level != "otu"){
       #foldChange=abs(fit2$coef[,i])
       #sigList=which(adjustedPvalues<=0.05)
       #sigList=sigList[order(foldChange[sigList])]
-      texp <- topTable(fit2,coef=i,number=NROW(fit2$coefficients),p.value=0.0001,adjust="BH")
+      texp <- topTable(fit2,coef=i,number=NROW(fit2$coefficients),p.value=0.05,adjust="BH")
       #texp$FC <-  foldChange[rownames(texp)]
       texp$DE <- results[rownames(results)%in%rownames(texp),i]
       texp <- cbind(texp,fData(df.f)[rownames(texp),-c(1,2)])
@@ -147,11 +147,62 @@ if (opt$level != "otu"){
   f <- which(rownames(MRcounts(df.f))%in%DElist.1)
   dfc <- df.f[f,1:length(sampleNames(df.f))]
   
+  heatmapColColors = brewer.pal(12, "Set3")[as.integer(factor(pData(dfc)$group))] 
+  heatmapCols = colorRampPalette(c("#D9D9D9","#3794BF","#238B45","#D53E4F"))(4)#colorRampPalette(brewer.pal(4, "RdBu"))(50)
+  for (i in levels(pData(dfc)$Gender)){
+    i <- "female"
+    samplesToKeep <- which(pData(dfc)$Gender==i)
+    dfc.g <- dfc[,samplesToKeep]
+    matc.g <- MRcounts(dfc.g,norm=T,log=T)
+    pData(dfc.g) <- pData(dfc.g)[order(pData(dfc.g)$Age),]
+    matc.g <- matc.g[,rownames(pData(dfc.g))]
+    fontsize_col = 10 - nrow(matc.g) / 15
+    fontsize_row = 10 - nrow(matc.g) / 15
+    pheatmap(matc.g,col = heatmapCols,annotation_col=pData(dfc.g)[,("group"),drop=F],
+             cluster_cols=F,fontsize_col=fontsize_col,fontsize_row=fontsize_row,labels_col=pData(dfc.g)[,("Age")])
+    pheatmap(matc.g,col=heatmapCols,annotation_col=pData(dfc.g)[,("group"),drop=F],
+             cluster_cols=T,fontsize_col=fontsize_col,fontsize_row=fontsize_row,labels_col=pData(dfc.g)[,("Age")])
+  } 
+  
+  
+  #df.f <- filterData(df,present=35) # Filtration process according otu presence
+  pData(df.f) <- pData(df.f)[order(pData(df.f)$Age),]
+  
+  matraw <- returnAppropriateObj(df.f,norm=T,log=T)[,rownames(pData(df.f))]
+  pheatmap(matraw,col = heatmapCols,annotation_col=pData(df.f)[,("group"),drop=F],
+           cluster_cols=F,fontsize_col=6,labels_col=pData(df.f)[,("Age")])
+  pheatmap(matraw,col = heatmapCols,annotation_col=pData(df.f)[,("group"),drop=F],
+           cluster_cols=T,fontsize_col=6,labels_col=pData(df.f)[,("Age")])
+  fontsize_col = 10 - nrow(mat) / 15
+  fontsize_row = 10 - nrow(mat) / 15
+
+  pData(dfc) <- pData(dfc)[order(pData(dfc)$Age),]
+  
+  mat = returnAppropriateObj(dfc,norm=T,log=T)[,rownames(pData(dfc))]
+  
+  pheatmap(mat,col = heatmapCols,annotation_col=pData(dfc)[,("group"),drop=F],
+           cluster_cols=F,fontsize_col=fontsize_col,fontsize_row=fontsize_row,labels_col=pData(dfc)[,("Age")])
+  pheatmap(mat,col=heatmapCols,annotation_col=pData(dfc)[,("group"),drop=F],
+           cluster_cols=T,fontsize_col=fontsize_col,fontsize_row=fontsize_row,labels_col=pData(dfc)[,("Age")])
+
+  dfc <- df.f[f,1:length(sampleNames(df.f))]
+  
+  
+  
+  pie(1:12,1:12,col=brewer.pal(11,"Spectral")[9:1])
+  pie(1:12,1:12,col=brewer.pal(9,"BuGn")[9:1])
+  pie(1:12,1:12,col=brewer.pal(9,"Greys")[9:1])
+
+  pie(1:10,1:10,col=colorRampPalette(c("#9BC9DF","green"))(5))
+  
+  c("#9BC9DF","#3794BF","#FEE08B","#D53E4F")
   counts <- MRcounts(dfc,norm=T)
   counts.l <- MRcounts(dfc,norm=T,log=T)
   pData(dfc) <- pData(dfc)[order(pData(dfc)$Age),]
   counts <- counts[,rownames(pData(dfc)[order(pData(dfc)$Age),])]
   counts.l <- counts.l[,rownames(pData(dfc)[order(pData(dfc)$Age),])]
+  
+  
   ### Cluster analysis
   getClusters(counts,counts.l,
               design=pData(dfc)[c("Age",opt$variable)],method=opt$clmethod,path=opt$out,prefix=paste(opt$level,'_',opt$prefix,'_',sep=""),val=opt$clval)
