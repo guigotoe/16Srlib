@@ -35,18 +35,18 @@ get_script_path <- function() {
 }
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
-#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
-toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/age_lib/toolbox.R"
+toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/age_lib/toolbox.R'
+#toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/age_lib/toolbox.R"
 source(toolbox)
 
 packages(c("metagenomeSeq","reshape2","optparse","pheatmap","vegan","clusterSim","Rlof"))
 
 ## Options ##
-#p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
-p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
+p <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/'
+#p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 
 option_list <- list(
-  make_option(c("-i","--data"),type="character",default=paste(p,'age/dataF.rds',sep=''),#NA,#
+  make_option(c("-i","--data"),type="character",default=paste(p,'age/dataFcp.rds',sep=''),#NA,#
               help="Path to input rds file"),
   make_option(c("-o","--out"),type="character",default=paste(p,'age/',sep=''),#
               help="Path to output directory [default %default]"),
@@ -80,7 +80,8 @@ pData(df.r)$group <- as.factor(unlist(apply(pData(df.r),1,function(x){
   if (as.numeric(x[["Age"]]) < 40) {return("G1")
   }else if (as.numeric(x[["Age"]]) > 39 & as.numeric(x[["Age"]]) < 60){ return("G2")
   }else if (as.numeric(x[["Age"]]) > 59 & as.numeric(x[["Age"]]) < 80){ return("G3")
-  }else if (as.numeric(x[["Age"]]) > 79) return("G4")
+  }else if (as.numeric(x[["Age"]]) > 79 & as.numeric(x[["Age"]]) < 90){ return("G4")
+  }else if (as.numeric(x[["Age"]]) > 79) return("LLI")
 })))
 ###### filtrating ######
 df.f <- filterData(df.r,present=opt$shared) # Filtration process according otu presence
@@ -120,12 +121,46 @@ females <- df.f[,samplesToKeep]
 colorRampPalette( brewer.pal(9, "Set1"))(6)
 
 Nets <- list()
-phenotype.f <- as.data.frame(matrix(data=NA,nrow=0,ncol=length(colnames(pData(females)))))
-colnames(phenotype.f) <- colnames(pData(females))
+phenotype.f <- as.data.frame(matrix(data=NA,nrow=0,ncol=length(colnames(pData(df.f)))))
+colnames(phenotype.f) <- colnames(pData(df.f))
 j="males"
-i <- "G4"
+i <- "G1"
 df <- males
 ### by age group ###
+samplesToKeepByGroup <- which(pData(df)$group==i)
+df.g <- df[,samplesToKeepByGroup]
+## remove outliers using Local Outlier Factor (LOF) approach##
+dfc <- t(MRcounts(df.g,norm=T,log=T))
+distmat <- vegdist(dfc,"bray")
+nmds <- metaMDS(distmat,trace=F)
+ordiplot(nmds,type="p",display="sites")
+sc <- scores(nmds)
+x <- 1.3
+outliers <- which(lof(sc,nrow(dfc)/3)>x)#
+plot(lof(sc,nrow(dfc)/3))
+abline(h=x,col = "gray60", lty = 3)
+if(length(outliers)!=0) df.g <- df.g[,-outliers]
+phenotype.f <- rbind(phenotype.f,pData(df.g))
+## end outliers##
+## coocurrence for each cluster ##
+source(toolbox)
+net <- net.mb(df.g,nc=2)
+title <- paste(j,i,sep="_")
+Nets[[title]] <- net
+phylla_colors <- levels(as.factor(V(net$full$igraph)$phycol))
+genus_colors <- levels(as.factor(V(net$full$igraph)$gencol))
+family_colors <- levels(as.factor(V(net$full$igraph)$famcol))
+
+plot(net$graph, layout=net$layout, vertex.size=net$vsize, vertex.label=NA, main=paste(j,i,sep=" "),edge.width=2)#abs(E(net$graph)$weight)*40)
+pdf(paste(opt$out,title,"_net.pdf",sep=''),width=8, height=5)
+plot(net$graph, layout=net$layout, vertex.size=net$vsize, vertex.label=NA, main=paste(j,i,sep=" "),edge.width=2)#abs(E(net$graph)$weight)*40
+dev.off()
+
+
+## end coocurrence ##
+
+
+
 for (i in pData(df)$group){
   samplesToKeepByGroup <- which(pData(df)$group==i)
   df.g <- df[,samplesToKeepByGroup]

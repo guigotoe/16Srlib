@@ -87,20 +87,26 @@ dismatplot <- function(sampleDists,samplenames,title,o){
   dev.off()
 }
 
-taxprop <- function(dfp,v,tl,o,limit=0.01,u=F){
+taxprop <- function(dfp,v,tl,o,limit=0.05,u=F,z=F){
   ## input: 1) MRexperiment (proportions,features,metadata) 2) reference variable: x axis 3) taxlevel 4) output path
-  dfx <- MRcounts(dfp)
-  tx <- fData(dfp)
-  mx <- pData(dfp)
-  rownames(dfx) <- tx[[tl]]
-  dfxt<- as.data.frame(t(dfx))
+  ## u=F -> with unclisified -> z=F -> with others
   ## sum columns with same name -- OTUs with same taxonomical level:
-  dfxta <- as.data.frame(sapply(unique(names(dfxt)[duplicated(names(dfxt))]), function(x) Reduce("+", dfxt[ , grep(x, names(dfxt))])))
-  gm <- cbind(dfxta,mx[v],id=mx[,1])
-  gm_m <- melt(gm,id.vars=c(v,"id"))
-  taxa <- unlist(apply(gm_m,1, function(x) if(as.numeric(x["value"])>limit){(x["variable"])}else{"Others"}))
+  #dfxta <- as.data.frame(sapply(unique(names(dfxt)[duplicated(names(dfxt))]), function(x) Reduce("+", dfxt[ , grep(x, names(dfxt))])))
+  packages("matrixStats")
+  df <- aggTax(dfp,lvl=tl)
+  df.t<- as.data.frame(t(MRcounts(df)))
+  OTUsToKeep <- c()
+  for (i in levels(as.factor((pData(dfp)[[v]])))){
+    mk <- colMeans(df.t[rownames(df.t)%in%pData(dfp)[pData(dfp)[v]==i,1],])
+    OTUsToKeep <- c(OTUsToKeep,names(mk[mk>limit]))
+  }
+  OTUsToKeep <- unique(OTUsToKeep)
+  gm <- cbind(df.t,pData(dfp)[v],id=pData(dfp)[1])
+  gm_m <- melt(gm,id.vars=c(v,"ID"))
+  #taxa <- unlist(apply(gm_m,1, function(x) if(as.numeric(x["value"])>limit){(x["variable"])}else{"Others"}))
+  taxa <- unlist(apply(gm_m,1,function(x) if(x["variable"]%in%OTUsToKeep)return(x["variable"])else return("Others")))
   gm_m$"taxa" <- as.factor(taxa)
-  gmx2 <- aggregate(as.formula(paste("value~",'id+taxa+',paste(v,collapse="+"))),data=gm_m,FUN=sum) # Because some taxa now are xOthers so we need to summ their values
+  gmx2 <- aggregate(as.formula(paste("value~",'ID+taxa+',paste(v,collapse="+"))),data=gm_m,FUN=sum) # Because some taxa now are xOthers so we need to summ their values
   
   taxorder <- data.frame(taxa=levels(gmx2$taxa),rate=rep(0,length(levels(gmx2$taxa))))
   for (i in levels(gmx2$taxa)){
@@ -121,29 +127,32 @@ taxprop <- function(dfp,v,tl,o,limit=0.01,u=F){
   title <- paste(tl," abundance distribution",sep='')
   write.table(gmx2,file=paste(o,gsub(" ",'_',title),'_',v,'.txt',sep=''),sep="\t",quote=F,row.names=F)
   ut <- ''
+  ot <- ''
   if(u==T){gmx2 <- subset(gmx2,gmx2$taxa!='unclassified');ut <- '_Xuncl'}
+  if(z==T){gmx2 <- subset(gmx2,gmx2$taxa!='Others');ot <- '_Xothers'}
   
   distplot <- ggplot(gmx2,aes(x=as.factor(gmx2[[v]]),y=value,fill=taxa))+geom_boxplot()+#geom_jitter(position=position_jitter(width=.2), size=0.5)+
     scale_fill_manual(name=tl,values=palette) +
     scale_x_discrete(v)+ylab("Proportion")+
     ggtitle(paste(title,sep=""))+
-    theme(axis.text.x  = element_text(angle=0, vjust=0.5, size=12),
+    theme(axis.text.x  = element_text(angle=0, vjust=0.5, size=12,face="bold"),
           panel.grid.minor=element_blank(),panel.grid.major=element_blank(),
           legend.position="bottom",legend.box="horizontal",
-          legend.text = element_text(size=8),
+          legend.text = element_text(size=9),
           legend.title = element_text(size=10, face="bold"),
           plot.title = element_text(lineheight=.12, face="bold"))
-  ggsave(paste(gsub(" ",'_',title),ut,'_',v,'.pdf',sep=''),plot=distplot,path=o,width=8,height=5,device="pdf")
+  ggsave(paste(gsub(" ",'_',title),ot,ut,'_',v,'.pdf',sep=''),plot=distplot,path=o,width=8,height=5,device="pdf")
   
 }
-#DEdata <- counts
-#ldata <- counts.l
-#method <- opt$clmethod
-#design <- pData(df.f)[c("Age",opt$variable)]
-#path <- opt$out
-#prefix <- paste(opt$level,'_',sep="")
-#val=opt$clval
 
+taxonprop <- function(dfp,v,tl,otu,o){
+  ## input: 1) MRexperiment (proportions,features,metadata) 2) reference variable: x axis 3) taxlevel 4) Taxon name 5) output path
+  dfx <- MRcounts(dfp)
+  tx <- fData(dfp)
+  mx <- pData(dfp)
+  rownames(dfx) <- tx[[tl]]
+  dfxt<- as.data.frame(t(dfx))
+}
 
 getClusters <- function(DEdata,ldata,method=c("PAM","P","K","Km"),design,path,prefix="",w=2,val=NULL,JSD=F,hs=80){
   packages(c("clusterSim","cluster"))
@@ -311,12 +320,13 @@ pam.clustering=function(x,k) { # x is a distance matrix and k the number of clus
   return(cluster)
 }
 
-net.mb <- function(df){
-  packages(c("phyloseq","Matrix","igraph","SpiecEasi"))
-  #install_github("zdk123/SpiecEasi")
-  mat <- returnAppropriateObj(df,norm=T,log=F)
+net.mb <- function(df,nc=1){
+  packages(c("phyloseq","Matrix","igraph","devtools"))
+  install_github("zdk123/SpiecEasi")
+  packages(c("SpiecEasi"))
+  mat <- returnAppropriateObj(df,norm=F,log=F)
   mat <- t(mat)
-  a <- spiec.easi(mat,method='mb',npn=TRUE,lambda.min.ratio=1e-2,nlambda=20,icov.select.params=list(rep.num=50))
+  a <- spiec.easi(mat,method='mb',npn=TRUE,lambda.min.ratio=1e-2,nlambda=30,icov.select.params=list(rep.num=100,ncores=nc))
   b <- graph.adjacency(a$refit, mode='undirected')
   c <- rowMeans(clr(mat, 1))+4
   d <- layout.fruchterman.reingold(b)
@@ -329,6 +339,17 @@ net.mb <- function(df){
   E(b)$weight <- weight
   E(b)$color <- "blue"
   E(b)$color[E(b)$weight < 0] <- 'red'
+  V(b)$phyla <- as.vector(fData(df)$Phylum)
+  V(b)$phycol <- brewer.pal(length(levels(as.factor(V(b)$phyla))), "Set1")
+  V(b)$genus <-as.vector(fData(df)$Genus)
+  V(b)$gencol <- colorRampPalette(brewer.pal(8, "Set1"))(length(levels(as.factor(V(b)$genus))))
+  V(b)$family <- as.vector(fData(df)$Family)
+  V(b)$famcol <- colorRampPalette(brewer.pal(8, "Set1"))(length(levels(as.factor(V(b)$family))))
+  V(b)$class <- as.vector(fData(df)$Class)
+  V(b)$clascol <- colorRampPalette(brewer.pal(8, "Set1"))(length(levels(as.factor(V(b)$class))))
+  V(b)$type <- "OTU"
+  
+  
   return(list(mb=a,graph=b,layout=d,vsize=c))
 }
 
