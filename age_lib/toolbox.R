@@ -87,12 +87,22 @@ dismatplot <- function(sampleDists,samplenames,title,o){
   dev.off()
 }
 
+taxon.level <- function(df,tlevel,pmin=63){
+  packages("matrixStats")
+  df <- aggTax(df,lvl=tlevel) 
+  ma <- rowMeans(df) # Mean abundance of this taxa
+  p <- apply(MRcounts(df),1,function (x) sum(x>63)/dim(df)[2]) # Total presence = presence/No. Individuals => max = 1
+  taxorder <- ma*p
+  taxorder <- sort(taxorder,decreasing=T)
+  return(names(taxorder))
+}
+
 taxprop <- function(dfp,v,tl,o,limit=0.05,u=F,z=F){
   ## input: 1) MRexperiment (proportions,features,metadata) 2) reference variable: x axis 3) taxlevel 4) output path
   ## u=F -> with unclisified -> z=F -> with others
   ## sum columns with same name -- OTUs with same taxonomical level:
   #dfxta <- as.data.frame(sapply(unique(names(dfxt)[duplicated(names(dfxt))]), function(x) Reduce("+", dfxt[ , grep(x, names(dfxt))])))
-  packages("matrixStats")
+  packages(c("matrixStats","RAM"))
   df <- aggTax(dfp,lvl=tl)
   df.t<- as.data.frame(t(MRcounts(df)))
   OTUsToKeep <- c()
@@ -146,6 +156,7 @@ taxprop <- function(dfp,v,tl,o,limit=0.05,u=F,z=F){
 }
 
 taxonprop <- function(dfp,v,tl,otu,o){
+  #not finish yet
   ## input: 1) MRexperiment (proportions,features,metadata) 2) reference variable: x axis 3) taxlevel 4) Taxon name 5) output path
   dfx <- MRcounts(dfp)
   tx <- fData(dfp)
@@ -320,15 +331,15 @@ pam.clustering=function(x,k) { # x is a distance matrix and k the number of clus
   return(cluster)
 }
 
-net.mb <- function(df,nc=1){
-  packages(c("phyloseq","Matrix","igraph","devtools"))
+net.mb <- function(df,nc=1,tl){
+  packages(c("phyloseq","Matrix","igraph","devtools","RAM"))
   install_github("zdk123/SpiecEasi")
   packages(c("SpiecEasi"))
   mat <- returnAppropriateObj(df,norm=F,log=F)
   mat <- t(mat)
   a <- spiec.easi(mat,method='mb',npn=TRUE,lambda.min.ratio=1e-2,nlambda=30,icov.select.params=list(rep.num=100,ncores=nc))
   b <- graph.adjacency(a$refit, mode='undirected')
-  c <- rowMeans(clr(mat, 1))+4
+  c <- rowMeans(clr(mat, 1))+6
   d <- layout.fruchterman.reingold(b)
   #plot(b, layout=d, vertex.size=c, vertex.label=NA, main="MB")
   elist.mb <- summary(symBeta(getOptBeta(a), mode='maxabs'))
@@ -336,24 +347,70 @@ net.mb <- function(df,nc=1){
     y <- elist.mb[elist.mb$i==x[1] & elist.mb$j==x[2],]
     if (nrow(y)!=0) return(y$x) else return(0.01)
   }))
+  E(b)$weight <- abs(weight) 
+  graph_attr(b,"ceb") <- cluster_edge_betweenness(b)
+  graph_attr(b,"cfg") <- cluster_fast_greedy(b)
+  graph_attr(b,"clp") <- cluster_label_prop(b)
+  E(b)$color <- "forestgreen"
   E(b)$weight <- weight
-  E(b)$color <- "blue"
-  E(b)$color[E(b)$weight < 0] <- 'red'
-  V(b)$phyla <- as.vector(fData(df)$Phylum)
-  V(b)$phycol <- brewer.pal(length(levels(as.factor(V(b)$phyla))), "Set1")
-  V(b)$genus <-as.vector(fData(df)$Genus)
-  V(b)$gencol <- colorRampPalette(brewer.pal(8, "Set1"))(length(levels(as.factor(V(b)$genus))))
-  V(b)$family <- as.vector(fData(df)$Family)
-  V(b)$famcol <- colorRampPalette(brewer.pal(8, "Set1"))(length(levels(as.factor(V(b)$family))))
-  V(b)$class <- as.vector(fData(df)$Class)
-  V(b)$clascol <- colorRampPalette(brewer.pal(8, "Set1"))(length(levels(as.factor(V(b)$class))))
-  V(b)$type <- "OTU"
+  E(b)$color[E(b)$weight < 0] <- 'indianred1'
+  graph_attr(b,"kc") <- coreness(b,mode="all")
+  V(b)$Phylum <- as.vector(fData(df)$Phylum)
+  levels <- taxon.level(tl,"Phylum")
+  colourCount = length(levels)
+  col <- colorRampPalette(brewer.pal(8, "Set1"))(9)[c(1:colourCount)]
+  partition_assignments <- unlist(lapply(V(b)$Phylum, function(x) which(levels==x)))
+  V(b)$pcol <- col[partition_assignments]
+  graph_attr(b,"pcol") <- col
+  graph_attr(b,"plev") <- levels[sort(unique(partition_assignments),decreasing=F)]
+  graph_attr(b,"passort") <- assortativity_nominal(knet,partition_assignments, directed=F)
   
+  V(b)$Class <- as.vector(fData(df)$Class)
+  levels <- taxon.level(tl,"Class")
+  colourCount = length(levels)
+  palette <- c(RAM.pal(cols.needed=(10)),RAM.pal(cols.needed=(35))[c(17:21,26)],
+               RAM.pal(cols.needed=(50))[c(36:50)],colorRampPalette(brewer.pal(8, "Greys")[6:1])(colourCount))
+  col <- palette[c(1:colourCount)]
+  partition_assignments <- unlist(lapply(V(b)$Class, function(x) which(levels==x)))
+  V(b)$ccol <- col[partition_assignments]
+  graph_attr(b,"clev") <- levels[sort(unique(partition_assignments),decreasing=F)]
+  graph_attr(b,"ccol") <- col
+  graph_attr(b,"cassort") <- assortativity_nominal(knet,partition_assignments, directed=F)
+  
+  V(b)$Family <- as.vector(fData(df)$Family)
+  levels <- taxon.level(tl,"Family")
+  colourCount = length(levels)
+  palette <- c(RAM.pal(cols.needed=(10)),RAM.pal(cols.needed=(35))[c(17:21,26)],
+               RAM.pal(cols.needed=(50))[c(36:50)],colorRampPalette(brewer.pal(8, "Greys")[6:1])(colourCount))
+  col <- palette[c(1:colourCount)]
+  partition_assignments <- unlist(lapply(V(b)$Family, function(x) which(levels==x)))
+  V(b)$fcol <- col[partition_assignments]
+  graph_attr(b,"flev") <- levels[sort(unique(partition_assignments),decreasing=F)]
+  graph_attr(b,"fcol") <- col
+  graph_attr(b,"fassort") <- assortativity_nominal(knet,partition_assignments, directed=F)
+  
+  V(b)$Genus <- as.vector(fData(df)$Genus)
+  levels <- taxon.level(tl,"Genus")
+  colourCount = length(levels)
+  palette <- c(RAM.pal(cols.needed=(10)),RAM.pal(cols.needed=(35))[c(17:21,26)],
+               RAM.pal(cols.needed=(50))[c(36:50)],colorRampPalette(brewer.pal(8, "Greys")[6:1])(colourCount))
+  col <- palette[c(1:colourCount)]
+  partition_assignments <- unlist(lapply(V(b)$Genus, function(x) which(levels==x)))
+  V(b)$gcol <- col[partition_assignments]
+  graph_attr(b,"glev") <- levels[sort(unique(partition_assignments),decreasing=F)]
+  graph_attr(b,"gcol") <- col
+  graph_attr(b,"gassort") <- assortativity_nominal(knet,partition_assignments, directed=F)
   
   return(list(mb=a,graph=b,layout=d,vsize=c))
 }
 
-
+add.alpha <- function(col, alpha=1){
+  if(missing(col))
+    stop("Please provide a vector of colours.")
+  apply(sapply(col, col2rgb)/255, 2, 
+        function(x) 
+          rgb(x[1], x[2], x[3], alpha=alpha))  
+}
 
 
 

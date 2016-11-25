@@ -39,7 +39,7 @@ toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/age_lib
 #toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/age_lib/toolbox.R"
 source(toolbox)
 
-packages(c("metagenomeSeq","reshape2","optparse","pheatmap","vegan","clusterSim","Rlof"))
+packages(c("metagenomeSeq","reshape2","optparse","pheatmap","vegan","clusterSim","Rlof","plyr"))
 
 ## Options ##
 p <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/'
@@ -121,13 +121,19 @@ females <- df.f[,samplesToKeep]
 colorRampPalette( brewer.pal(9, "Set1"))(6)
 
 Nets <- list()
-phenotype.f <- as.data.frame(matrix(data=NA,nrow=0,ncol=length(colnames(pData(df.f)))))
-colnames(phenotype.f) <- colnames(pData(df.f))
+phenotype <- list()
+#phenotype <- as.data.frame(matrix(data=NA,nrow=0,ncol=length(colnames(pData(df)))))
+#colnames(phenotype) <- colnames(pData(df))
 j="males"
-i <- "G1"
+i <- "LLI"
 df <- males
 ### by age group ###
+title <- paste(j,i,sep="_")
 samplesToKeepByGroup <- which(pData(df)$group==i)
+#df.g <- df.g
+x <- 2
+## males: G1=1.3 G2=1.3, G3=1.5, G4=1.3; LLI - crush
+## females: G1=1.5 G2=1.1 G3=1.4, G4=1.4; LLI=2
 df.g <- df[,samplesToKeepByGroup]
 ## remove outliers using Local Outlier Factor (LOF) approach##
 dfc <- t(MRcounts(df.g,norm=T,log=T))
@@ -135,30 +141,195 @@ distmat <- vegdist(dfc,"bray")
 nmds <- metaMDS(distmat,trace=F)
 ordiplot(nmds,type="p",display="sites")
 sc <- scores(nmds)
-x <- 1.3
 outliers <- which(lof(sc,nrow(dfc)/3)>x)#
 plot(lof(sc,nrow(dfc)/3))
 abline(h=x,col = "gray60", lty = 3)
 if(length(outliers)!=0) df.g <- df.g[,-outliers]
-phenotype.f <- rbind(phenotype.f,pData(df.g))
+phenotype[[title]] <- pData(df.g)
 ## end outliers##
 ## coocurrence for each cluster ##
 source(toolbox)
-net <- net.mb(df.g,nc=2)
-title <- paste(j,i,sep="_")
+net <- net.mb(df.g,nc=2,tl=df.f)
 Nets[[title]] <- net
-phylla_colors <- levels(as.factor(V(net$full$igraph)$phycol))
-genus_colors <- levels(as.factor(V(net$full$igraph)$gencol))
-family_colors <- levels(as.factor(V(net$full$igraph)$famcol))
-
+knet <- net$graph
 plot(net$graph, layout=net$layout, vertex.size=net$vsize, vertex.label=NA, main=paste(j,i,sep=" "),edge.width=2)#abs(E(net$graph)$weight)*40)
+par(mfrow=c(1,1))
 pdf(paste(opt$out,title,"_net.pdf",sep=''),width=8, height=5)
-plot(net$graph, layout=net$layout, vertex.size=net$vsize, vertex.label=NA, main=paste(j,i,sep=" "),edge.width=2)#abs(E(net$graph)$weight)*40
+plot(knet, layout=net$layout,rescale=T,edge.curved=.15,edge.width=2,main=paste(j,i,sep=" "),
+     vertex.size=net$vsize, vertex.color=V(knet)$pcol,vertex.label=NA)
+legend(x=1.1, y=1.3,knet$plev, title="Phylum",pch=21,col="#777777", pt.bg=knet$pcol, pt.cex=2, cex=.8, bty="n", ncol=1)
+plot(knet, layout=net$layout,rescale=T,edge.curved=.15,edge.width=2,main=paste(j,i,sep=" "),
+     vertex.size=net$vsize, vertex.color=V(knet)$ccol,vertex.label=NA)
+legend(x=1.1, y=1.3,knet$clev, title="Class",pch=21,col="#777777", pt.bg=knet$ccol, pt.cex=2, cex=.8, bty="n", ncol=1)
+plot(knet, layout=net$layout,rescale=T,edge.curved=.15,edge.width=2,main=paste(j,i,sep=" "),
+     vertex.size=net$vsize, vertex.color=V(knet)$fcol,vertex.label=NA)
+legend(x=1.1, y=1.3,knet$flev, title="Family",pch=21,col="#777777", pt.bg=knet$fcol, pt.cex=2, cex=.8, bty="n", ncol=1)
+plot(knet, layout=net$layout,rescale=T,edge.curved=.15,edge.width=2,main=paste(j,i,sep=" "),
+     vertex.size=net$vsize, vertex.color=V(knet)$gcol,vertex.label=NA)
+legend(x=-2.2, y=-1.1,knet$glev,title="Genus",pch=21,col="#777777", pt.bg=knet$gcol, pt.cex=1.5, cex=.6, bty="n", ncol=5)
+#legend(x=1.1, y=1.3,knet$glev,title="Genus",pch=21,col="#777777", pt.bg=knet$gcol, pt.cex=2, cex=.8, bty="n", ncol=1)
 dev.off()
 
+#### all data together ###
+saveRDS(Nets,file=paste(opt$out,'Nets.rds',sep=''))
+saveRDS(phenotype,file=paste(opt$out,'Clean_phenotype.rds',sep=''))
+ph <- ldply(phenotype, data.frame)
+ph <- ph[order(ph$Age),]
+Nets.a <- list()
+phenotype.a <- list()
+
+j="All"
+i <- "ALL"
+df <- df.f
+### by age group ###
+title <- paste(j,i,sep="_")
+samplesToKeepByGroup <- which(pData(df)$group==i)
+df.g <- df
+x <- 1.4
+## All: G1=1.4 G2=1.2, G3=1.4, G4=1.1; LLI=1.2; All=1.4
+df.g <- df[,samplesToKeepByGroup]
+## remove outliers using Local Outlier Factor (LOF) approach##
+dfc <- t(MRcounts(df.g,norm=T,log=T))
+distmat <- vegdist(dfc,"bray")
+nmds <- metaMDS(distmat,trace=F)
+sc <- scores(nmds)
+l <- round(lof(sc,nrow(dfc)/2),1)
+outliers <- which(l>x)
+cols <- rep("grey",length(l))
+cols[outliers]="red"
+fig <- ordiplot(nmds,type="none",display="sites")
+points(fig,"sites",pc=19,col=cols,cex=0.9)
+text(sc,labels=l,pos=3,cex=0.7)
+#plot(lof(sc,nrow(dfc)/3))
+if(length(outliers)!=0) df.g <- df.g[,-outliers]
+phenotype.a[[title]] <- pData(df.g)
+## end outliers##
+## coocurrence for each cluster ##
+source(toolbox)
+net <- net.mb(df.g,nc=2,tl=df.f)
+Nets.a[[title]] <- net
+knet <- net$graph
+i <- 'ALL'
+ss <- paste('All',i,sep='_')
+title <- paste(j,i,sep="_")
+net <- Nets.a[[ss]]
+knet <- Nets.a[[ss]]$graph
+#net$layout <- layout.fruchterman.reingold(net$graph)
+plot(net$graph, layout=net$layout, vertex.size=net$vsize, vertex.label=NA, main=paste(j,i,sep=" "),edge.width=2)#abs(E(net$graph)$weight)*40)
+pdf(paste(opt$out,title,"_net.pdf",sep=''),width=8, height=5)
+plot(knet, layout=net$layout,rescale=T,edge.curved=.15,edge.width=2,main=paste(j,i,sep=" "),
+     vertex.size=net$vsize, vertex.color=V(knet)$pcol,vertex.label=NA)
+legend(x=1.1, y=1.3,knet$plev, title="Phylum",pch=21,col="#777777", pt.bg=knet$pcol, pt.cex=2, cex=.8, bty="n", ncol=1)
+plot(knet, layout=net$layout,rescale=T,edge.curved=.15,edge.width=2,main=paste(j,i,sep=" "),
+     vertex.size=net$vsize, vertex.color=V(knet)$ccol,vertex.label=NA)
+legend(x=1.1, y=1.3,knet$clev, title="Class",pch=21,col="#777777", pt.bg=knet$ccol, pt.cex=2, cex=.8, bty="n", ncol=1)
+plot(knet, layout=net$layout,rescale=T,edge.curved=.15,edge.width=2,main=paste(j,i,sep=" "),
+     vertex.size=net$vsize, vertex.color=V(knet)$fcol,vertex.label=NA)
+legend(x=1.1, y=1.3,knet$flev, title="Family",pch=21,col="#777777", pt.bg=knet$fcol, pt.cex=2, cex=.8, bty="n", ncol=1)
+plot(knet, layout=net$layout,rescale=T,edge.curved=.15,edge.width=2,main=paste(j,i,sep=" "),
+     vertex.size=net$vsize, vertex.color=V(knet)$gcol,vertex.label=NA)
+legend(x=-2.2, y=-1.1,knet$glev,title="Genus",pch=21,col="#777777", pt.bg=knet$gcol, pt.cex=1.5, cex=.6, bty="n", ncol=5)
+#legend(x=1.1, y=1.3,knet$glev,title="Genus",pch=21,col="#777777", pt.bg=knet$gcol, pt.cex=2, cex=.8, bty="n", ncol=1)
+dev.off()
+levels <- taxon.level(df.f,"Family")
+partition_assignments <- unlist(lapply(V(knet)$Family, function(x) which(levels==x)))
+knet$fassort <- assortativity_nominal(knet,partition_assignments, directed=F)
+## Community detection
+ncomunities <- length(sizes(knet$ceb)[sizes(knet$ceb)>3])
+com <- sizes(knet$ceb)[sizes(knet$ceb)>3]
+mark <- lapply(names(com),function(x) which(membership(knet$ceb)==x))
+markcol <- adjustcolor(colorRampPalette(brewer.pal(8, "Greys")[4:3])(ncomunities),alpha.f=0.4)
+## k-core; The k-core is the maximal subgraph in which every node has degree of at least k.
+pdf(paste(opt$out,title,"_net_community.pdf",sep=''),width=8, height=5)
+plot(knet$ceb,knet, layout=net$layout,rescale=T,edge.curved=.15,edge.width=2,main=paste(j,i,sep=" "),
+     vertex.size=net$vsize, vertex.color=V(knet)$pcol,vertex.label=NA)
+#legend(x=1.1, y=1.3,knet$plev, title="Phylum",pch=21,col="#777777", pt.bg=knet$pcol, pt.cex=2, cex=.8, bty="n", ncol=1)
+text(x=-1.2,labels=paste("No. communities > 3 members: ",ncomunities,sep=""),pos=2)
+plot(knet, layout=net$layout,rescale=T,edge.curved=.15,edge.width=2,main=paste(j,i,sep=" "),
+     vertex.size=net$vsize, vertex.color=V(knet)$fcol,vertex.label=NA,
+     mark.groups=mark,mark.col=markcol, mark.border="black")
+legend(x=1.1, y=1.3,knet$flev, title="Family",pch=21,col="#777777", pt.bg=knet$fcol, pt.cex=2, cex=.8, bty="n", ncol=1)
+text(x=-1.2,labels=paste("Homophily: ",round(knet$fassort,2),sep=""),pos=2)
+plot(knet, layout=net$layout,rescale=T,edge.curved=.15,edge.width=2,main=paste(j,i,sep=" "),
+     vertex.size=knet$kc*5, vertex.color=V(knet)$fcol,vertex.label=NA,
+     mark.groups=mark,mark.col=markcol, mark.border="black")
+legend(x=1.1, y=1.3,knet$flev, title="Family",pch=21,col="#777777", pt.bg=knet$fcol, pt.cex=2, cex=.8, bty="n", ncol=1)
+text(x=-1.2,labels=paste("degree max.: ",max(knet$kc),sep=""),pos=2)
+dev.off()
 
 ## end coocurrence ##
 
+###
+## making a movie ##
+packages(c("network","sna","ergm","tsna","ndtv","visNetwork","networkDynamic"))
+netlist <- list()
+for (i in names(Nets.a)){
+  print(i)
+  netlist[[i]] <- as_adj(Nets.a[[as.character(i)]]$graph,edge=T,sparse=T)
+}
+netlist<-lapply(netlist,as.network.matrix,matrix.type='adjacency')
+names(netlist)
+allnets<-networkDynamic(network.list=netlist)
+p.names <- V(Nets.a[[as.character(i)]]$graph)$Phylum
+c.names <- V(Nets.a[[as.character(i)]]$graph)$Class
+f.names <- V(Nets.a[[as.character(i)]]$graph)$Family
+g.names <- V(Nets.a[[as.character(i)]]$graph)$Genus
+network.vertex.names(allnets)<-c.names
+#mnet%v%'family' <- f.names
+#mnet%v%'phyllum' <- p.names
+
+allnets%n%'net.obs.period'<-list(
+  observations=list(c(0,length(names(allnets)))),
+  mode="discrete", 
+  time.increment=1,
+  time.unit="book volume")
+
+render.animation(allnets)
+compute.animation(allnets,
+                  animation.mode='MDSJ',
+                  default.dist=2,
+                  verbose=FALSE)
+slice.par <- list(start = 1, end = 5, interval = 1,
+                  aggregate.dur = 1, rule = "latest")
+compute.animation(allnets,
+                  animation.mode='MDSJ',
+                  default.dist=2,
+                  verbose=FALSE)
+list.vertex.attributes(allnets)
+render.animation(allnets)
+
+render.d3movie(nt,
+               render.par=list(tween.frames=30,show.time=F),
+               vertex.cex=0.8,label.cex=0.8,label.col='gray',
+               displaylabels=F,
+               # make shape relate to school year
+               #vertex.sides=mnet%v%'schoolyear'-1983,
+               # color by gender
+               #vertex.col=ifelse(harry_potter_support%v%'gender'==1,'blue','green'),
+               edge.col="darkgray",
+               vertex.tooltip=function(slice){paste('name:',slice%v%'vertex.names','<br>',
+                                                    'status:', slice%v%'testatus')},
+               output.mode = 'htmlWidget'
+)
+m <- mnet
+par(mfrow=c(1,1))
+par(mar = c(3, 3, 2, 4))
+
+proximity.timeline(allnets,default.dist=6,
+                   mode='sammon',labels.at=124,vertex.cex=4)
+plot(tEdgeFormation(allnets))
+plot(tSnaStats(allnets,'gtrans'))
+plot(tErgmStats(allnets,'meandeg'),main='Mean degree of Men nets')
+
+timeline(allnets,slice.par=list(start=0,end=25,interval=1,aggregate.dur=1,rule='latest'),
+         plot.vertex.spells=FALSE)
+
+timePrism(allnets,at=c(1,10,20),displaylabels=T,planes=T,label.cex=0.5)
+timeline(allnets)
+
+
+
+###
 
 
 for (i in pData(df)$group){
