@@ -35,12 +35,12 @@ get_script_path <- function() {
 }
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
-toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/age_lib/toolbox.R'
-#toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/age_lib/toolbox.R"
+#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/age_lib/toolbox.R'
+toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/age_lib/toolbox.R"
 source(toolbox)
 #p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
-#p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
-p <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/'
+p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
+#p <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/'
 packages(c("metagenomeSeq","vegan","ggplot2","RColorBrewer","RAM","PoiClaClu","zCompositions","reshape2"))
 
 ###### end ######
@@ -152,6 +152,12 @@ for (v in vs){
          title=v,title.col='black')
   dev.off()
 }
+source(toolbox)
+tl <- 'Genus'
+otu <- 'Ruminococcus'
+taxonprop (dfp,v,tl,otu,o)
+
+
 
 ### Structural analysis ##
 # replicates correlation ##
