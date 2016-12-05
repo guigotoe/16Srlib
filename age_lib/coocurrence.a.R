@@ -35,15 +35,15 @@ get_script_path <- function() {
 }
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
-toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/age_lib/toolbox.R'
-#toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/age_lib/toolbox.R"
+#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/age_lib/toolbox.R'
+toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/age_lib/toolbox.R"
 source(toolbox)
 
-packages(c("metagenomeSeq","reshape2","optparse","pheatmap","vegan","clusterSim","Rlof","plyr"))
+packages(c("metagenomeSeq","reshape2","optparse","pheatmap","vegan","clusterSim","Rlof","plyr","igraph","orca"))
 
 ## Options ##
-p <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/'
-#p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
+#p <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/'
+p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 
 option_list <- list(
   make_option(c("-i","--data"),type="character",default=paste(p,'age/dataFcp.rds',sep=''),#NA,#
@@ -258,6 +258,81 @@ text(x=-1.2,labels=paste("degree max.: ",max(knet$kc),sep=""),pos=2)
 dev.off()
 
 ## end coocurrence ##
+saveRDS(Nets.a,file=paste(opt$out,'Nets.a.rds',sep=''))
+saveRDS(phenotype.a,file=paste(opt$out,'Clean_phenotype.a.rds',sep=''))
+Nets.a <- readRDS('/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/age/Nets.a.rds')
+net1 <- Nets.a$All_G1$graph
+net2 <- Nets.a$All_G2$graph
+net3 <- Nets.a$All_G3$graph
+net4 <- Nets.a$All_G4$graph
+net5 <- Nets.a$All_LLI$graph
+net6 <- Nets.a$All_ALL$graph
+plot(net1, layout=Nets.a$All_G1$layout, vertex.size=Nets.a$All_G1$vsize, vertex.label=NA,,edge.width=2)#abs(E(net$graph)$weight)*40)
+
+ddnet1 <- degree_distribution(net1,cumulative=F)
+ddnet2 <- degree_distribution(net2,cumulative=F)
+ddnet3 <- degree_distribution(net3,cumulative=F)
+ddnet4 <- degree_distribution(net4,cumulative=F)
+ddnet5 <- degree_distribution(net5,cumulative=F)
+ddnet6 <- degree_distribution(net6,cumulative=F)
+
+avedeg1 <- sum(seq_along(ddnet1)*ddnet1)-1
+avedeg2 <- sum(seq_along(ddnet2)*ddnet2)-1
+avedeg3 <- sum(seq_along(ddnet3)*ddnet3)-1
+avedeg4 <- sum(seq_along(ddnet4)*ddnet4)-1
+avedeg5 <- sum(seq_along(ddnet5)*ddnet5)-1
+avedeg6 <- sum(seq_along(ddnet6)*ddnet5)-1
+
+pdf(paste(opt$out,"ALL_DegreeDistribution.pdf",sep=''),width=8, height=5)
+plot(seq_along(ddnet1)-1,ddnet1,type='b',xlim=c(0,15),ylim=c(0,0.5),ylab="Frequency",xlab="Degree",col=brewer.pal(8, "Set1")[1])
+points(seq_along(ddnet2),ddnet2,type='b',col=brewer.pal(8, "Set1")[2])
+points(seq_along(ddnet3),ddnet3,type='b',col=brewer.pal(8, "Set1")[3])
+points(seq_along(ddnet4),ddnet4,type='b',col=brewer.pal(8, "Set1")[4])
+points(seq_along(ddnet5),ddnet5,type='b',col=brewer.pal(8, "Set1")[5])
+points(seq_along(ddnet6),ddnet6,type='b',col=brewer.pal(8, "Set1")[7])
+legend("topright",c("G1","G2","G3","G4","LLI  ","ALL"),col=brewer.pal(8, "Set1")[c(1:5,7)],pch=1,lty=1)
+dev.off()
+
+natcon <- function(ig) {
+  N   <- vcount(ig)
+  adj <- get.adjacency(ig)
+  evals <- eigen(adj)$value
+  nc  <- log(mean(exp(evals)))
+  nc / (N - log(N))
+}
+ig <- net3
+nc.attack <- function(ig) {
+  E(ig)$weight <- abs(E(ig)$weight)
+  hubord <- order(rank(betweenness(ig)), rank(degree(ig)), decreasing=TRUE)
+  sapply(1:round(vcount(ig)*0.8), function(i) {
+    ind <- hubord[1:i]
+    #print(length(hubord))
+    tmp <- delete_vertices(ig, V(ig)[[ind]])
+    natcon(tmp)
+  }) }
+nc.g1 <- nc.attack(net1)
+nc.g2 <- nc.attack(net2)
+nc.g3 <- nc.attack(net3)
+nc.g4 <- nc.attack(net4)
+nc.g5 <- nc.attack(net5)
+nc.g6 <- nc.attack(net6)
+
+pdf(paste(opt$out,"ALL_NetworkStability.pdf",sep=''),width=8, height=5)
+plot(seq(0,.8,len=length(nc.g1)), nc.g1, type='l', ylim=c(0,0.013),xlab="Proportion of removed nodes", ylab="natural connectivity")
+points(seq(0,.8,len=length(nc.g2)), nc.g2, type='l',col=brewer.pal(8, "Set1")[2])
+points(seq(0,.8,len=length(nc.g3)), nc.g3, type='l',ylim=c(0,max(nc.g1)),col=brewer.pal(8, "Set1")[3])
+points(seq(0,.8,len=length(nc.g4)), nc.g4, type='l',col=brewer.pal(8, "Set1")[4])
+points(seq(0,.8,len=length(nc.g5)), nc.g5, type='l',col=brewer.pal(8, "Set1")[5])
+points(seq(0,.8,len=length(nc.g6)), nc.g6, type='l',col=brewer.pal(8, "Set1")[7])
+legend("topright",c("G1","G2","G3","G4","LLI  ","ALL"),col=brewer.pal(8, "Set1")[c(1:5,7)],pch=1,lty=1)
+dev.off()
+
+hist(diff(nc.g1), breaks=30, col='red', ylim=c(0,80), main="Fragility rates")
+
+
+selist <- list(Nets.a$All_G1$mb, Nets.a$All_G2$mb,Nets.a$All_G3$mb, Nets.a$All_G4$mb,Nets.a$All_LLI$mb, Nets.a$All_ALL$mb)
+orbits <- c(0,2,5,7,8,10,11,6,9,4,1) + 1
+graphlets <- lapply(selist, function(x) count4(summary(Matrix::triu(x$refit))[,1:2])[,orbits])
 
 ###
 ## making a movie ##
