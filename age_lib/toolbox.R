@@ -158,11 +158,30 @@ taxprop <- function(dfp,v,tl,o,limit=0.05,u=F,z=F){
 taxonprop <- function(dfp,v,tl,otu,o){
   #not finish yet
   ## input: 1) MRexperiment (proportions,features,metadata) 2) reference variable: x axis 3) taxlevel 4) Taxon name 5) output path
-  dfx <- MRcounts(dfp)
-  tx <- fData(dfp)
-  mx <- pData(dfp)
-  rownames(dfx) <- tx[[tl]]
-  dfxt<- as.data.frame(t(dfx))
+  OTUsToKeep <-  as.character(fData(dfp)[fData(dfp)[[tl]]%in%otu,1])
+  dfx <- dfp[OTUsToKeep,]
+  df <- aggTax(dfx,lvl=tl)
+  
+  df.t<- as.data.frame(t(MRcounts(df)))
+  gm <- cbind(df.t,pData(df)[v],id=pData(df)[1])
+  gm_m <- melt(gm,id.vars=c(v,"ID"))
+  gm_m$"taxa" <- gm_m$"variable"
+  gmx2 <- aggregate(as.formula(paste("value~",'ID+taxa+',paste(v,collapse="+"))),data=gm_m,FUN=sum) # Because some taxa now are xOthers so we need to summ their values
+  title <- paste(tl," abundance distribution",sep='')
+  distplot <- ggplot(gmx2,aes(x=as.factor(gmx2[[v]]),y=value,fill=taxa))+geom_boxplot()+#geom_jitter(position=position_jitter(width=.2), size=0.5)+
+    #scale_fill_manual(name=tl)# +
+    scale_x_discrete(v)+ylab("Proportion")+xlab("taxon")+
+    ggtitle(paste(title,sep=""))+
+    theme(axis.text.x  = element_text(angle=0, vjust=0.5, size=14,face="bold"),
+          panel.grid.minor=element_blank(),panel.grid.major=element_blank(),
+          legend.position="bottom",legend.box="horizontal",
+          legend.text = element_text(size=9),
+          legend.title = element_text(size=14, face="bold"),
+          plot.title = element_text(lineheight=.16, face="bold"))
+  ggsave(paste(gsub(" ",'_',title),'_',v,'.pdf',sep=''),plot=distplot,path=o,width=8,height=5,device="pdf")
+  
+  
+  
 }
 
 getClusters <- function(DEdata,ldata,method=c("PAM","P","K","Km"),design,path,prefix="",w=2,val=NULL,JSD=F,hs=80){
@@ -413,6 +432,118 @@ add.alpha <- function(col, alpha=1){
 }
 
 
+
+
+twographs <- function(){
+  library(ggplot2)
+  library(gridExtra)
+  p <- "/Users/guillermotorres/Documents/OtrosUsuarios/Lena/" ## path to the folder where the input files are.
+  gene.p <- read.table(paste(p,"genes_with_percentages.txt",sep=''),sep="\t")
+  gene.p$P <- as.numeric(gsub('%','',gene.p$V2,fixed=T))
+  gene.p <- gene.p[order(-gene.p$P),]
+  gene.p$V1 <- factor(as.character(gene.p$V1),levels=as.character(gene.p$V1))
+  gene.names <- unlist(apply(gene.p,1,function(x) paste(x[1],x[2],collapse="  ")))
+  names(gene.names) <- levels(gene.p$V1)
+  
+  ind.load <- read.table(paste(p,"mutational_load_per_sample.100spBCCs.txt",sep=''),sep="\t")
+  ind.load <- ind.load[order(-ind.load$V2),]
+  ind.load$V1 <- factor(as.character(ind.load$V1),levels=as.character(ind.load$V1))
+  
+  ind.gen <- read.table(paste(p,"merged_data.genes_fig1_+_candidates.txt",sep=''),sep="\t")
+  ind.gen$V2 <- factor(ind.gen$V2,levels=levels(gene.p$V1))
+  ind.gen$V1 <- factor(ind.gen$V1,levels=levels(ind.load$V1))
+  
+  g1 <- ggplot(ind.load,aes(x=V1,y=V2))+geom_bar(stat='identity')+
+    scale_y_discrete("Mutational load",limits=c(seq(0,max(ind.load$V2),length.out=5)))+
+    theme(axis.line.x = element_blank(),
+          axis.line.y = element_line(color="black",size=0.5),
+          axis.text.x=element_blank(),axis.title.x=element_blank(),#axis.text.x= element_text(angle = 90, hjust = 1),
+          panel.background=element_blank(),legend.position="none",axis.title.y=element_text(margin=margin(0,20,0,0)))
+  
+  g2 <- ggplot(ind.gen,aes(x=V1,y=V2,fill=V3))+geom_point(shape=22)+
+    scale_y_discrete("Genetic alteration",labels=gene.names)+
+    facet_grid(V2 ~ ., scales = "free", space = "free") +
+    theme(axis.line.x = element_blank(),
+          axis.text.x=element_blank(),axis.title.x=element_blank(),#axis.text.x= element_text(angle = 90, hjust = 1),#
+          panel.background=element_blank(),
+          #panel.grid.major.y = element_line(size = 3,color='white',linetype=1),
+          panel.grid.major.x = element_line(size=2,color='grey88',linetype=1),
+          legend.position="none",strip.background = element_blank(),
+          strip.text = element_blank(),axis.title.y=element_text(margin=margin(0,20,0,0)))
+  ## legend purposes ##
+  gl <- ggplot(ind.gen,aes(x=V1,y=V2,fill=V3))+geom_point(shape=22)+
+    scale_y_discrete("Genetic alteration",labels=gene.names)+
+    facet_grid(V2 ~ ., scales = "free", space = "free") +
+    theme(axis.line.x = element_blank(),
+          axis.text.x=element_blank(),axis.title.x=element_blank(),#axis.text.x= element_text(angle = 90, hjust = 1),#
+          panel.background=element_blank(),
+          #panel.grid.major.y = element_line(size = 3,color='white',linetype=1),
+          panel.grid.major.x = element_line(size=2,color='grey88',linetype=1),
+          strip.background = element_blank(),
+          strip.text = element_blank(),legend.title=element_blank())
+  ##
+  gp1 <- ggplot_gtable(ggplot_build(g1))
+  gp2 <- ggplot_gtable(ggplot_build(g2))
+  gpl <- ggplot_gtable(ggplot_build(gl))
+  gp.leg <- gpl$grobs[[56]]               ## extracting legend information - number depends on the amount of elements in the graph
+  maxWidth = grid::unit.pmax(gp1$widths[2:3],gp2$widths[2:3])
+  gp1$widths[2:3] <- as.list(maxWidth)
+  gp2$widths[2:3] <- as.list(maxWidth)
+  graph <- grid.arrange(arrangeGrob(gp1,gp2,heights=c(2/6,4/6),ncol=1),gp.leg,widths=c(9/10,1/10))
+  #graph ## uncoment this line to visualize the plot in r
+  ggsave(paste(p,'myplot.pdf',sep=''),graph,width=12, height=8,device="pdf")
+  
+  
+  
+  gp.leg <- gp2$grobs[[8]]
+  
+  hist <- data.frame(id=c(1:10),mtmo=sample(10:100,10,replace=T))
+  ids <- as.factor(hist$id)
+  hist$id <- ids
+  genmut <- data.frame(id=c(1,1,1,2,2,2,2,2,3,3,3,4,4,4,4,5,5,5,6,6,6,6,7,7,8,9,10),
+              gen=c('a','b','c','a','b','c','d','e','a','c','d','a','c','d','e','a','b','c',
+                    'b','c','d','e','a','b','c','d','e'),
+              mut=c(rep('T',10),'Non','Non','Non',rep('T',10),'Non','Non','T','T'))
+  genmut$id <- factor(genmut$id,levels=levels(ids))
+  hist$table <- rep('t1',nrow(hist))
+  genmut$table <- rep('t2',nrow(genmut))
+  
+  g1 <- ggplot(hist,aes(x=as.factor(id),y=mtmo))+geom_bar(stat='identity')+
+    scale_y_discrete(limits=c(seq(0,100,length.out=5),120))+
+    theme(axis.line.x = element_blank(),
+          axis.line.y = element_line(color="black",size=0.5),
+          axis.text.x= element_blank(),axis.title.x=element_blank(),
+          panel.background=element_blank(),legend.position="none")
+  g2 <- ggplot(genmut,aes(x=id,y=gen,fill=mut))+geom_point(shape=22, size=10)+
+    theme(axis.line.x = element_blank(),
+          axis.line.y = element_line(color="black",size=0.5),
+          axis.text.x= element_blank(),axis.title.x=element_blank(),
+          panel.background=element_blank(),
+          panel.grid.major.x = element_line(size = 1,color='grey'),
+          legend.position="none")
+  gp1 <- ggplot_gtable(ggplot_build(g1))
+  gp2 <- ggplot_gtable(ggplot_build(g2))
+  gp.leg <- gp2$grobs[[8]]
+  maxWidth = grid::unit.pmax(gp1$widths[2:3],gp2$widths[2:3])
+  gp1$widths[2:3] <- as.list(maxWidth)
+  gp2$widths[2:3] <- as.list(maxWidth)
+  grid.arrange(arrangeGrob(gp1,gp2,heights=c(2/6,4/6),ncol=1),gp.leg,widths=c(9/10,1/10))
+  
+  ## http://stackoverflow.com/questions/15999304/plotting-continuous-and-discrete-series-in-ggplot-with-facet
+  
+  
+  ggplot()+
+    geom_bar(data=hist,aes(x=id,y=mtmo),stat='identity')+
+    #scale_y_discrete(data=hist,limits=c(seq(0,100,length.out=5),120))+
+    facet_grid(table~.,scale='free_y')+
+    geom_point(data=genmut,aes(x=id,y=gen,fill=mut),shape=22, size=10)+
+    theme(axis.line.x = element_blank(),
+          axis.line.y = element_line(color="black",size=0.5),
+          axis.text.x= element_blank(),axis.title.x=element_blank(),
+          panel.background=element_blank(),
+          panel.grid.major.x = element_line(size = 1,color='grey'))
+  
+}
 
 
 
