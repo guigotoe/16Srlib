@@ -45,14 +45,14 @@ packages(c("metagenomeSeq","optparse"))
 #pa = '/home/torres/ikmb_storage/Metagenome/16s/2017/4_2017/'                   # AGING VERSION
 #ra <- '/home/torres/Documents/Projects/Metagenome/2017_results/9_2017/'        # AGING VERSION
 pa <- '/home/torres/ikmb_storage/Mangrove/16Sfa/2016/mothur/'                   # MANGROVE VERSION
-ra <- '/home/torres/ikmb_storage/Mangrove/16Sfa/08_2017_results/2016/picrust/'          # MANGROVE VERSION
+ra <- '/home/torres/ikmb_storage/Mangrove/16Sfa/08_2017_results/2016/'          # MANGROVE VERSION
 
 option_list <- list(
   make_option(c("-i","--input"),action="store",type="character",default=paste(pa,'greengenes_result/16s_2016_salinity.biom',sep=''),#'16s.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.shared'
               help="Path to input biom input file"),
   make_option(c("-m","--metadata"),action="store",type="character",default=paste(pa,'metadata.txt',sep=''),
               help="Path to input metadata file"),
-  make_option(c("-c","--contribution"),action="store",type="character",default=paste(ra,'ko_contributions.txt',sep=''),
+  make_option(c("-f","--fasta"),action="store",type="character",default=paste(pa,'OTUs.fa',sep=''),
               help="Path to OTUs fasta file"),
   make_option(c("-o","--out"),action="store",type="character",default=paste(ra,'',sep=''),
               help="Path to output directory [default %default]"),
@@ -73,7 +73,8 @@ if (is.na(opt$input)){stop(sprintf("There is not counts biom-file specified"))
 if(length(grep("/$",opt$out))==0) opt$out <- paste(opt$out,"/",sep="")
 
 picrust_path <- '/home/torres/Bin/picrust-1.1.2/scripts/' # local
-picrust_outpath <- paste(opt$out,'analisys/',sep='')
+picrust_outpath <- paste(opt$out,'picrust/',sep='')
+human_outpath <- '/home/sukmb347/sukmb347/Mangrove/16Sfa/08_2017_results/2016/human/'# **server version 
 
 if(dir.exists(picrust_outpath)){message('picrustOut folder already exist, files will be overwritten')
 }else dir.create(picrust_outpath,showWarnings=F)

@@ -72,8 +72,8 @@ mothur.metadata <- function(metadata){
   return(metadata)
 }
 
-#biomf <- opt$input
-#metadataf <- opt$metadataś
+biomf <- opt$input
+metadataf <- opt$metadata
 mothur.biom <- function(biomf,metadataf){
   packages(c("biomformat","metagenomeSeq"))
   biom_file <- read_biom(biomf)
@@ -91,11 +91,12 @@ mothur.biom <- function(biomf,metadataf){
   taxdf$Size <- apply(MRcounts(bdata),1,sum)
   counts <- as.data.frame(MRcounts(bdata))
   counts$Size <- as.numeric(unlist(lapply(rownames(MRcounts(bdata)),function(x) taxdf[x,'Size'])))
-  taxdf <- taxdf[with(taxdf,order(-Size)),]
-  counts <- counts[with(counts,order(-Size)),]
-  taxdf$OTU <- paste('GG_OTU',1:nrow(taxdf),sep='')
-  rownames(counts) <- taxdf$OTU
-  rownames(taxdf) <- taxdf$OTU
+  ##* new names.. better not because picrust use the old ones *##
+  #taxdf <- taxdf[with(taxdf,order(-Size)),]
+  #counts <- counts[with(counts,order(-Size)),]
+  #taxdf$OTU <- paste('GG_OTU',1:nrow(taxdf),sep='')
+  #rownames(counts) <- taxdf$OTU
+  #rownames(taxdf) <- taxdf$OTU
   data.mr <- newMRexperiment(counts[,1:(ncol(counts)-1)],phenoData=AnnotatedDataFrame(mdata),featureData=AnnotatedDataFrame(taxdf[,1:7]))#
   #data.mr <- newMRexperiment(MRcounts(bdata),phenoData=AnnotatedDataFrame(mdata),featureData=AnnotatedDataFrame(fData(bdata)))
   return(data.mr)
