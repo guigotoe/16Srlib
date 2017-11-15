@@ -72,8 +72,8 @@ mothur.metadata <- function(metadata){
   return(metadata)
 }
 
-biomf <- opt$input
-metadataf <- opt$metadata
+#biomf <- opt$input
+#metadataf <- opt$metadata
 mothur.biom <- function(biomf,metadataf){
   packages(c("biomformat","metagenomeSeq"))
   biom_file <- read_biom(biomf)
