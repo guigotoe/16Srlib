@@ -36,19 +36,20 @@ get_script_path <- function() {
 }
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
-#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
+toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
 #toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
 packages(c("metagenomeSeq","reshape2","vegan","ggplot2","optparse"))
 
 ## Options ##
-#p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
+
+p <- '/home/torres/ikmb_storage/Mangrove/16Sfa/08_2017_results/2017/'
 #p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 
 option_list <- list(
-  make_option(c("-i","--data"),action="store",type="character",default=NA,#paste(p,'age/dataF.rds',sep=''),
+  make_option(c("-i","--data"),action="store",type="character",default=paste(p,'dataFcp_l_0.1.rds',sep=''),
               help="Path to input rds file"),
-  make_option(c("-o","--out"),action="store",type="character",default="./",#paste(p,'age',sep=''),
+  make_option(c("-o","--out"),action="store",type="character",default=paste(p,'beta/',sep=''),
              help="Path to output directory [default %default]"),
   make_option(c("-e","--exploratory"),action="store_true",default="NA",
               help="Perform exploratory analysis"),
@@ -72,8 +73,13 @@ opt <- parse_args(parser)
 #parse_args(parser,positional_arguments=1) 
 if (is.na(opt$data)){stop(sprintf("There is not file specified"))}
 
+##
+if(dir.exists(opt$out)){message('Out-folder already exist, files will be overwritten')
+}else dir.create(opt$out,showWarnings=F)
+
 #### Preparing the input data ####
 data <- readRDS(opt$data)
+#pData(data) <- pData(data)[,-ncol(pData(data))]
 dlog <- log2(MRcounts(data)+1)
 dlogm <- sort.default(unlist(apply(dlog,1,function(x) mean(x))))
 csnorm <- cumsum(dlogm)/sum(dlogm)
@@ -83,12 +89,14 @@ dataTrimed <- data[-totrim,]
 
 dfc0 <- t(MRcounts(dataTrimed,norm=T))
 dfc <- t(log2(MRcounts(dataTrimed,norm=T)+1))
-
-q <- pData(dataTrimed)[, !sapply(pData(dataTrimed), is.factor)]
-c <- pData(dataTrimed)[, sapply(pData(dataTrimed), is.factor)]
+pData(dataTrimed) <- pData(dataTrimed)[,-which(colnames(pData(dataTrimed))%in%c('ID','Punto'))]
+c_na <- pData(dataTrimed)[, !sapply(pData(dataTrimed), is.factor)] # cuantitative variables
+q <- pData(dataTrimed)[, sapply(pData(dataTrimed), is.factor)] # qualitative variables
+c <- c_na[ , colSums(is.na(c_na)) == 0]
+var <- pData(dataTrimed)[,colSums(is.na(pData(dataTrimed)))==0][,-1]
 #taxa <- fData(df)[,which(colnames(fData(df))%in%c("Phylum","Class","Order","Family"))] 
 #rankindex(scale(x),t(MRcounts(df,norm=T)),c("euc","man","bray","jac","kul"))
-
+rownames(dfc) <- index[match(rownames(dfc),rownames(pData(dataTrimed))),3]
 ###### end ######
 
 if (opt$exploratory==T){
@@ -106,7 +114,7 @@ if (opt$exploratory==T){
   pdf(paste(opt$out,"e02_NMDS.pdf",sep=''),width=8, height=5)
   ordiplot(nmds,type="t",display="sites")
   dev.off()
-  ef <- envfit(nmds,q,permu=999)
+  ef <- envfit(nmds,c,permu=999,na.rm=TRUE)
   sink(file=paste(opt$out,"e_Envfitting2NMDS.txt",sep='')) 
   ef 
   sink(NULL) 
@@ -120,7 +128,7 @@ if (opt$exploratory==T){
   plot(pca)
   text(pca,display="sites")
   dev.off()
-  ef <- envfit(pca,q,permu=999)
+  ef <- envfit(pca,c,permu=999)
   sink(file=paste(opt$out,"e_Envfitting2PCA.txt",sep='')) 
   ef 
   sink(NULL) 
@@ -135,7 +143,7 @@ if (opt$exploratory==T){
   plot(ca)
   text(ca,display="sites")
   dev.off()
-  ef <- envfit(ca,q,permu=999)
+  ef <- envfit(ca,c,permu=999)
   sink(file=paste(opt$out,"e_Envfitting2CA.txt",sep='')) 
   ef 
   sink(NULL) 
@@ -150,7 +158,7 @@ if (opt$exploratory==T){
   plot(dca)
   text(dca,display="sites")
   dev.off()
-  ef <- envfit(dca,q,permu=999)
+  ef <- envfit(dca,c,permu=999)
   sink(file=paste(opt$out,"e_Envfitting2DCA.txt",sep='')) 
   ef 
   sink(NULL) 
@@ -170,8 +178,8 @@ if (opt$exploratory==T){
   message("Ordination plots successfuly generated!\n")
 }
 if (opt$model==T){
-  mod0 <- cca(dfc ~ 1,q)
-  mod1 <- cca(dfc ~ .,q)
+  mod0 <- cca(dfc ~ 1,c)
+  mod1 <- cca(dfc ~ .,c)
   message("Building a model...")
   #modrev <- step(mod1,scope=list(lower=formula(mod0),upper=formula(mod1)),trace=0) 
   sink(file=paste(opt$out,"m01_fittingmodel.txt",sep='')) 
@@ -195,14 +203,14 @@ if (opt$model==T){
     Rterms <- c(Rterms,names(which(y==max(y))))
     terms <- terms[-which(y==max(y))]
     if(length(terms)!=0){
-      mody <- cca(as.formula(paste("dfc~",paste(terms,collapse='+'))),q)
+      mody <- cca(as.formula(paste("dfc~",paste(terms,collapse='+'))),c)
       y <- vif.cca(mody)
     }
-    modx <- cca(as.formula(paste("dfc~",paste(Rterms,collapse='+'))),q)
+    modx <- cca(as.formula(paste("dfc~",paste(Rterms,collapse='+'))),c)
     a <- anova(modx,by="terms",perm=1000)
     if (a$`Pr(>F)`[length(a$`Pr(>F)`)-1]>0.1){Rterms <- Rterms[-length(Rterms)]}
   }
-  modc <- cca(as.formula(paste("dfc~",paste(Rterms,collapse='+'))),q)
+  modc <- cca(as.formula(paste("dfc~",paste(Rterms,collapse='+'))),c)
   sink(file=paste(opt$out,"m02_fittedmodel_corrected.txt",sep=''))
   
   print("\n Variance Inflation Factors ")
@@ -225,7 +233,7 @@ if (opt$model==T){
   plot(modc)
   text(modc,display="sites")
   dev.off()
-  ef <- envfit(ca,q,permu=999)
+  ef <- envfit(ca,c,permu=999)
   sink(file=paste(opt$out,"e_Envfitting2CA.txt",sep='')) 
   ef 
   sink(NULL) 

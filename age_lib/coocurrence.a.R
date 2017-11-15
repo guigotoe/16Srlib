@@ -36,22 +36,24 @@ get_script_path <- function() {
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
 #toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/age_lib/toolbox.R'
-toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/age_lib/toolbox.R"
+#toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/age_lib/toolbox.R"
+toolbox <- "/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R"
 source(toolbox)
 
 packages(c("metagenomeSeq","reshape2","optparse","pheatmap","vegan","clusterSim","Rlof","plyr","igraph","orca"))
 
 ## Options ##
 #p <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/'
-p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
+p <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/age/'
+r <- paste(p,'coocurrences/',sep='')
 
 option_list <- list(
-  make_option(c("-i","--data"),type="character",default=paste(p,'age/dataFcp.rds',sep=''),#NA,#
+  make_option(c("-i","--data"),type="character",default=paste(p,'dataFcp.rds',sep=''),#NA,#
               help="Path to input rds file"),
-  make_option(c("-o","--out"),type="character",default=paste(p,'age/',sep=''),#
+  make_option(c("-o","--out"),type="character",default=paste(r,'2017/',sep=''),#
               help="Path to output directory [default %default]"),
-  make_option(c("-t","--shared"),type="double",default=100,
-              help="Sample's OTU-shared 0-n; default: %default"),
+  make_option(c("-s","--shared"),type="double",default=100,
+              help="OTUs shared by the samples: 0-1; default: %default"),
   make_option(c("-l","--level"),type="character",default="otu",
               help="Taxonomical level of the analysis (otu,Genus,Family,Order,Class,Phylum). default: %default"),
   make_option(c("-m","--clmethod"),type="character",default='P',
@@ -71,8 +73,8 @@ if (is.na(opt$data)){stop(sprintf("There is not data file specified"))}
 ###### end ######
 ###### reading files ######
 df.r <- readRDS(opt$data)
-pData(df.r) <- pData(df.r)[order(pData(df.r)$Age),]  # soring phenotype according Age
-df.r <- df.r[,rownames(pData(df.r))]                 # soring samples according Age
+pData(df.r) <- pData(df.r)[order(pData(df.r)$Age),]  # sorting phenotype according Age
+df.r <- df.r[,rownames(pData(df.r))]                 # sorting samples according Age
 pData(df.r)$LLI <-rep('normal',NROW(pData(df.r)))
 pData(df.r)$LLI[pData(df.r)$Age>90] <- "lli"
 pData(df.r)$LLI <- as.factor(pData(df.r)$LLI)

@@ -35,12 +35,12 @@ get_script_path <- function() {
 }
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
-#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/age_lib/toolbox.R'
-toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/age_lib/toolbox.R"
+toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/age_lib/toolbox.R'
+#toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/age_lib/toolbox.R"
 source(toolbox)
 #p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
-p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
-#p <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/'
+#p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
+p <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/06_2017/'
 packages(c("metagenomeSeq","vegan","ggplot2","RColorBrewer","RAM","PoiClaClu","zCompositions","reshape2"))
 
 ###### end ######
@@ -134,15 +134,13 @@ for (v in vs){
 ## OTU abundance analysis ##
 # Compositional Data - proportions
 
-  taxprop(dfp,v,'Phylum',o)
+  taxprop(dfp,v,'Phylum',o,z=T)
+  taxprop(dfp,v,'Class',o,z=T)
   taxprop(dfp,v,'Class',o)
   taxprop(dfp,v,'Order',o)
-  taxprop(dfp,v,'Order',o,u=T)
   taxprop(dfp,v,'Family',o)
-  taxprop(dfp,v,'Family',o,u=T)
+  taxprop(dfp,v,'Family',o)
   taxprop(dfp,v,'Genus',o)
-  taxprop(dfp,v,'Genus',o,u=T)
-  taxprop(dfp,v,'Genus',o,z=T)
   
   cl=factor(pData(df.n)[[v]])
   colrs <- colorRampPalette(brewer.pal(8, "Set1"))(9)[as.integer(factor(cl))]

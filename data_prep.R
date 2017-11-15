@@ -3,15 +3,15 @@
 # Institue of Clinical Molecular Biology (IKMB)    #
 # Christian-Albrechts-Universitat zu Kiel (CAU)    #            
 ####################################################
-# Last update: September 2016
-# Created: 29 October 2015
+# Last update: March 2016
+# Created: 29 September 2016
 #
 # This is written as part of 16S - Aging analysis, but could be
 # splitted to serve different purposes.
 ####################################################
 # Prepare and filters the data from mothur.
 # How to use:
-# Rscript data_prep.R -c ../16Srlib_test/16S.otus.count -x ../16Srlib_test/16S.otus.taxonomy -m ../16Srlib_test/metadata -o ../16Srlib_test/results
+# Rscript data_prep.R -h
 #
 #* requirements *#
 
@@ -35,104 +35,99 @@ get_script_path <- function() {
 }
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
-#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
-toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
+#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/age_lib/toolbox.R'
+toolbox <- "/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R"
 source(toolbox)
 
-packages(c("metagenomeSeq","optparse","ggplot2"))
+packages(c("metagenomeSeq","optparse","ggplot2","outliers","devtools"))
 
 ## Options ##
 #p = '/home/torres/ikmb_storage/Metagenome/16s/03.2016/'#
-#p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
-p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
+#r <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib_test/age'
+p <- '/home/torres/ikmb_storage/Mangrove/ITS/pipits/single/F/ITS1/out_process/'#'/home/torres/ikmb_storage/Mangrove/16Sfa/mothur/'
+r <- '/home/torres/Documents/Projects/Mangrove/ITS/results/'#'/home/torres/Documents/Projects/Mangrove/Results/16s/'
 
 option_list <- list(
-  make_option(c("-c","--counts"),action="store",type="character",default=paste(p,'16s.an.shared',sep=''),
+  make_option(c("-B","--biom"),action="store",type="character",default=paste(p,'otu_table.biom',sep=''),#'mgv16s.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.0.03.biom.bkup',sep=''),
+              help="Path to input biom file"),
+  make_option(c("-c","--counts"),action="store",type="character",default=paste(p,'otu_table.txt',sep=''),#paste(p,'mgv16s.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.shared',sep=''),
               help="Path to input counts file"),
-  make_option(c("-x","--taxonomy"),action="store",type="character",default=paste(p,'16s.an.cons.taxonomy',sep=''),
+  make_option(c("-x","--taxonomy"),action="store",type="character",default=NA,#paste(p,'mgv16s.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.0.03.cons.taxonomy.bkup',sep=''),
               help="Path to input taxonomy file"),
-  make_option(c("-m","--metadata"),action="store",type="character",default=paste(p,'design.txt',sep=''),
+  make_option(c("-m","--metadata"),action="store",type="character",default=paste(p,'metadata',sep=''),
               help="Path to input metadata file"),
-  make_option(c("-o","--out"),action="store",type="character",default=paste(p,'age',sep=''),
-              help="Path to output directory [default %default]"),
+  make_option(c("-n","--out"),action="store",type="character",default='ITSmgv2017',
+              help="Out files name"),
+  make_option(c("-o","--outpath"),action="store",type="character",default=paste(r,'',sep=''),
+              help="Path to output directory"),
   make_option(c("-t","--shared"),type="double",default=0.05,
               help="OTU presence; percentage of samples sharing each OTU. 0-1; default: %default"),
   make_option(c("-d","--depth"),type="double",default=10,
-              help="Minimum depth count; default: %default counts per otu")
+              help="Minimum depth count; default: %default counts per otu"),
+  make_option(c("-l","--libt"),type="double",default=1.3,
+              help="Library size threshold; times of sd threshold, default: %default - 0 means no threshold"),
+  make_option(c("-r","--replicas"),type="logical",default=FALSE,
+              help="Relicated libraries; default: %default"),
+  make_option(c("-P","--PIPITS"),type="logical",default=TRUE,
+              help="file from pipits; default: %default")
 )
-parser <- OptionParser(usage = "%prog -i path/to/infile -o path/to/outdir [options]",option_list=option_list)
+parser <- OptionParser(usage = "1. %prog -b path/to/biomfile -m path/to/metadata -o path/to/outdir [options] \n
+                       2. %prog -c path/to/countfile -x path/to/taxonomy -m path/to/metadata -o path/to/outdir [options]",option_list=option_list)
 opt <- parse_args(parser)
 #parse_args(parser,positional_arguments=1) 
-if (is.na(opt$counts)){stop(sprintf("There is not counts file specified"))
-}else if(is.na(opt$taxonomy)){stop(sprintf("There is not taxonomy file specified"))
-}else if(is.na(opt$metadata)){stop(sprintf("There is not metadata file specified"))}
-if(length(grep("/$",opt$out))==0) opt$out <- paste(opt$out,"/",sep="")
+if(!opt$PIPITS){
+  ifelse(!is.na(opt$biom),using_biom <- TRUE,ifelse(!is.na(opt$counts),using_counts <- TRUE,using_counts <- FALSE))
+  if (using_counts){
+    if(is.na(opt$taxonomy)) {stop(sprintf("There is not taxonomy file specified"))}
+    if(is.na(opt$metadata)) {stop(sprintf("There is not metadata file specified"))}
+  }else if(using_biom==FALSE & is.na(opt$metadata)) {stop(sprintf("There is not biom nor counts nor metadata file specified"))
+  }else if(using_biom & is.na(opt$metadata)) stop(sprintf("There is not metadata file specified"))
+}else if (is.na(opt$counts) | is.na(opt$metadata)) stop(sprintf("Either counts or metadata files are missing"))
+
+
+if(length(grep("/$",opt$outpath))==0) opt$outpath <- paste(opt$outpath,"/",sep="")
 
 ###### end ######
 
 #* input *
 
+source(toolbox)
 message("Preparing the files...")
-metadata <- mothur.metadata(read.table(opt$metadata,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
-taxonomy <- mothur.taxonomy(read.table(opt$taxonomy,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
-counts <- mothur.counts(read.table(opt$counts,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
-counts <- subset(counts,taxonomy$Kingdom!="unclassified")
-taxonomy <- subset(taxonomy,taxonomy$Kingdom!="unclassified")
-counts["7751662AGE_a_G4"] <- unlist(apply(counts[c("7344072AGE1_a_G4","6897722AGE_a_G4","662586SPC_a_G4","7344072AGE1_a_G4","9457743AGE1_a_G4")][,,],1,mean))
-ord = match(colnames(counts),rownames(metadata))
-metadata = metadata[ord,]
-#length(colnames(counts));length(union(colnames(counts),rownames(metadata)))
-if(length(colnames(counts))!=length(union(colnames(counts),rownames(metadata)))){
-  message("**Error: Count-sample's names don't match with Metadata-sample's names!\n\t*Check the files and try again\n")
-  quit()
-}
+if(opt$PIPITS) {data <- pipts.otu(opt$counts,opt$metadata)
+}else ifelse(using_biom, data <- mothur.biom(opt$biom,opt$metadata), data <- mothur.usingcounts(opt$counts,opt$metadata,opt$taxonomy))
 
-data <- newMRexperiment(counts,phenoData=AnnotatedDataFrame(metadata),featureData=AnnotatedDataFrame(taxonomy))
-counts.nl <- MRcounts(data,norm=T,log=T)
 message("Filtering...")
-techrep <- metadata$CC[duplicated(metadata$CC)]
-xyi=c()
-for (i in 1:length(techrep)){
-  y <- counts.nl[,metadata[metadata$CC==techrep[i],]$ID[1]]
-  x <- counts.nl[,metadata[metadata$CC==techrep[i],]$ID[2]]
-  ratio <- (x+1)/(y+1)
-  df <- data.frame(x=x,y=y,ratio=ratio)
-  #plot(density(df$ratio,na.rm=T))
-  corrxy <- cor.test(df$x,df$y)
-  if(corrxy$estimate>0.77){
-    minval <- mean(df$ratio)-sd(df$ratio)
-    maxval <- mean(df$ratio)+sd(df$ratio)
-    df$highlight <- unlist(lapply(df$ratio,function(x) if(x<minval|x>maxval){return("highlight")}else{return("normal")}))
-    dz <- subset(df,df$highlight=="highlight")
-    z <- abs(dz$x-dz$y)
-    #xyintercept <- quantile(z,probs=0.98)
-    xyintercept <- max(z)
-    xyi <- c(xyi,xyintercept)
-    print(c(i,corrxy$estimate,xyintercept))
-    mycolours <- c("highlight" = "red", "normal" = "grey")
-    ggplot(df,aes(x=x,y=y))+geom_point(aes(alpha=1/20))+
-      geom_hline(yintercept=xyintercept,co)+geom_vline(xintercept=xyintercept)+
-      ggtitle(i)+theme(legend.position="none",plot.title=element_text(lineheight=.8, face="bold"))
-    ggsave(filename=paste(opt$out,i,'_replicates.pdf',sep=''),device="pdf")
-  }
-} 
-rep <- metadata[metadata$CC%in%techrep,]
-samplesToKeep <- rownames(metadata)[!rownames(metadata)%in%rownames(rep[rep$rep=="a",])]
-data.f1 <- data[,samplesToKeep]
-counts.f1.n <- MRcounts(data.f1,norm=T)
-if(as.numeric(opt$shared)==0){shared <- 1}else{shared <- round(as.numeric(opt$shared)*NROW(pData(data)))}
-featuresToKeep <- c()
+
+### Sample filtering by library size ### 
+if(opt$libt != 0) data <- libsizefilter(data,opt$libt,opt$outpath)
+
+## Using replicas to set filtering thresholds. 
+if(opt$replicas) data <- replicas.analysis(data,opt$out)
+
+
+if(as.numeric(opt$shared)==0){shared <- 1}else shared <- round(as.numeric(opt$shared)*NROW(pData(data)))
+
+counts.f1.n <- MRcounts(data,norm=T,log=T)
+
+featuresToKeep <- c() # OTUs satisfying presence and coverage thresholds
 for (i in 1:NROW(counts.f1.n)){
   x <- counts.f1.n[i,]
-  x <- x[!x %in% c(0)]
-  if(length(x)>=shared & mean(x)>=dep) featuresToKeep <- c(featuresToKeep,rownames(counts.f1.n)[i])
+  x <- x[!x %in% c(0)] # take off all 0 counts
+  ## Identifying which OTUs satisfying only coverage threshold => shared = 1
+  #if(length(x)>=1 & mean(x)>=otu.coverage) featuresToKeep.a <- c(featuresToKeep.a,rownames(counts.f1.n)[i])
+  ## Identifying which OTUs satisfying presence and coverage thresholds
+  if(length(x)>=shared & mean(x)>=log(opt$depth)) featuresToKeep <- c(featuresToKeep,rownames(counts.f1.n)[i])
 }
-data.f2 <- data.f1[featuresToKeep,]
-data.f <- filterData(data.f2,present=shared,depth=opt$depth)
+data.f <- data[featuresToKeep,]
+
+## geting raw information##
 retained.info <- sum(fData(data.f)$Size)/sum(fData(data)$Size)
-message(paste(" - OTUs with mean count less than ",dep," and their presence in less than ",100*as.numeric(opt$shared),"% of the samples, were removed\n",
-              " - From ",dim(MRcounts(data))[1]," OTUs, ",dim(MRcounts(data.f))[1]," OTUs remained\n",
-              " - Information (Reads) retained: ",round(100*retained.info,2),"%; lost: ",round((100-100*retained.info),2),"%",sep=""))
+fData(data.f) <- droplevels(fData(data.f)) ## eliminate taxonomic levels without representation 
+phylum <- length(levels(as.factor(fData(data.f)$Phylum))); class <- length(levels(as.factor(fData(data.f)$Class)))
+order <- length(levels(as.factor(fData(data.f)$Order))); family <- length(levels(as.factor(fData(data.f)$Family)))
+genus <- length(levels(as.factor(fData(data.f)$Genus)));otu <- length(levels(as.factor(fData(data.f)$OTU)))
+pData(data.f)$libsize <- apply(MRcounts(data.f),2,sum)
+
 ## Normalizing
 message("Normalizing...")
 p.f <- cumNormStatFast(data.f) # Calculates the percentile for which to sum counts up to and scale by.
@@ -140,11 +135,15 @@ data.f <- cumNorm(data.f,p=p.f)  # Calculates each column's quantile and calcula
 nf.f <- normFactors(data.f)
 # saving files
 message("Exporting files...")
-saveRDS(data.f,file=paste(opt$out,'dataF.rds',sep=''))
-saveRDS(MRcounts(data.f),file=paste(opt$out,'otu_counts.rds',sep=''))
-saveRDS(pData(data.f),file=paste(opt$out,'phenotype.rds',sep=''))
-saveRDS(fData(data.f),file=paste(opt$out,'taxonomy.rds',sep=''))
-message(" - dataF.rds -> Counts filtered and normalized - Cumulative-sum scaling normalization (Paulson et. al 2013)\n",
-        " ** Data was successfully prepared! **")
-
-
+saveRDS(data.f,file=paste(opt$outpath,opt$out,'_dataF','.rds',sep=''))
+saveRDS(MRcounts(data.f),file=paste(opt$outpath,opt$out,'_otu_counts.rds',sep=''))
+saveRDS(pData(data.f),file=paste(opt$outpath,opt$out,'_phenotype.rds',sep=''))
+saveRDS(fData(data.f),file=paste(opt$outpath,opt$out,'_taxonomy.rds',sep=''))
+output <- paste(paste("Filtred mode ",opt$out,":\n- An OTU was removed when its average read count was less than ",opt$depth," and when it was present in less than the ",100*as.numeric(opt$shared),"% of the samples\n",
+                "- From ",NROW(MRcounts(data))," OTUs, ",NROW(MRcounts(data.f))," OTUs remained\n",
+                "- Information (Reads) retained: ",round(100*retained.info,2),"%; Lost: ",round((100-100*retained.info),2),"%",sep=""),"\n",
+                "- Taxonomic information:\n","   Phylum: ",phylum,"\tClass: ",class,"\tOrder: ",order,"\tFamily: ",family,"\tGenus: ",genus,"\tObserved OTU: ",NROW(MRcounts(data.f)),"\n",
+                '- ',opt$out,"_dataF.rds -> Counts filtered and normalized - Cumulative-sum scaling normalization (Paulson et. al 2013)\n",
+                "   \n** Data was successfully prepared! **\n",sep='')
+message(output)
+cat(output,file=paste(opt$outpath,'Report_data_prep.txt',sep=''),append=T)

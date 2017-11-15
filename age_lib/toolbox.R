@@ -36,20 +36,24 @@ numDFtranspose <- function(df){
 }
 
 changename <- function(df,col){
-  df[[col]] <- gsub(";unclassified",'',df[[col]])
-  df[[col]] <- gsub(";",'',df[[col]])
+  df[[col]] <- gsub("unclassified",'',df[[col]])
+  df[[col]] <- gsub("",'',df[[col]])
   return(df)
 }
 
 mothur.taxonomy <- function(taxonomy){
   packages(c("reshape2"))
-  taxnames <- c('Kingdom','Phylum','Class','Order','Family','Genus',"Specie","others")
+  taxnames <- c('Kingdom','Phylum','Class','Order','Family','Genus')
+  bootsraps <- c('bootstrap1','bootstrap2','bootstrap3','bootstrap4','bootstrap5','bootstrap6')
   x <- colsplit(taxonomy$Taxonomy,pattern="\\([[:digit:]]*\\);",names = taxnames)
-  for (i in taxnames){
-    x <- changename(x,i)
-  }
-  x[x==""|is.na(x)]  <- 'unclassified'
-  df <- cbind(taxonomy[,1:2],x)
+  x <- apply(x,2,function(x) as.factor(gsub("\\([[:digit:]]*\\);",'',x)))
+  y <- colsplit(taxonomy$Taxonomy,pattern="\\;[[[:alnum:]]_-]*",names = bootsraps)
+  y <- apply(y,2,function(y) as.double(gsub("[Bacteria \\(\\)\\;]",'',y)))
+  #for (i in taxnames){
+  #  x <- changename(x,i)
+  #}
+  #x[x==""|is.na(x)]  <- 'unclassified'
+  df <- cbind(taxonomy[,1:2],x,z)
   rownames(df) <- df[,1]
   return(df)
 }
@@ -61,11 +65,110 @@ mothur.counts <- function(counts){
   df <- numDFtranspose(counts)
   return(df)
 }
+
 mothur.metadata <- function(metadata){
   if (is.na(table(duplicated(metadata[,1]))["TRUE"])){row.names(metadata) <- metadata[,1]
   } else {rownames(df) <- make.names(metadata[,1], unique=TRUE)}
   return(metadata)
 }
+
+mothur.biom <- function(biomf,metadataf){
+  packages("biomformat","metagenomeSeq")
+  biom_file <- read_biom(biomf)
+  bdata <- biom2MRexperiment(biom_file)
+  taxnames <- c('Kingdom','Phylum','Class','Order','Family','Genus',colnames(fData(bdata))[-c(1:6)])
+  colnames(fData(bdata)) <- taxnames
+  mdata <- mothur.metadata(read.table(metadataf,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
+  ord = match(colnames(MRcounts(bdata)),rownames(mdata))
+  mdata = mdata[ord,]
+  if(length(colnames(MRcounts(bdata)))!=length(union(colnames(MRcounts(bdata)),rownames(mdata)))){
+    message("**Error: Count-sample's names don't match with Metadata-sample's names!\n\t*Check the files and try again\n")
+    quit()
+  }
+  taxdf <- fData(bdata)
+  taxdf$OTU <- rownames(taxdf)
+  taxdf$Size <- apply(MRcounts(bdata),1,sum)
+  taxdf <- taxdf[,c(13,14,1:12)]
+  data.mr <- newMRexperiment(MRcounts(bdata),phenoData=AnnotatedDataFrame(mdata),featureData=AnnotatedDataFrame(taxdf))
+  return(data.mr)
+}
+
+
+mothur.usingcounts <- function(countsf,metadataf,taxonomyf){
+  packages('metagenomeSeq')
+  metadata <- mothur.metadata(read.table(metadataf,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
+  taxonomy <- mothur.taxonomy(read.table(taxonomyf,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
+  counts <- mothur.counts(read.table(countsf,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
+  #taxonomy <- subset(taxonomy,taxonomy$Kingdom!="unclassified"& taxonomy$Phylum!="unclassified")
+  #counts["7751662AGE_a_G4"] <- unlist(apply(counts[c("7344072AGE1_a_G4","6897722AGE_a_G4","662586SPC_a_G4","7344072AGE1_a_G4","9457743AGE1_a_G4")][,,],1,mean))
+  ord = match(colnames(counts),rownames(metadata))
+  metadata = metadata[ord,]
+  if(length(colnames(counts))!=length(union(colnames(counts),rownames(metadata)))){
+    message("**Error: Count-sample's names don't match with Metadata-sample's names!\n\t*Check the files and try again\n")
+    quit()
+  }
+  data <- newMRexperiment(counts,phenoData=AnnotatedDataFrame(metadata),featureData=AnnotatedDataFrame(taxonomy))
+  return(data)
+  #metadata <- mothur.metadata(read.table(opt$metadata,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
+  #taxonomy <- mothur.taxonomy(read.table(opt$taxonomy,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
+  #counts <- mothur.counts(read.table(opt$counts,header=T,sep="\t",blank.lines.skip=TRUE,na.strings=c("","NA")))
+  #counts <- subset(counts,taxonomy$Kingdom!="unclassified"& taxonomy$Phylum!="unclassified")
+  #taxonomy <- subset(taxonomy,taxonomy$Kingdom!="unclassified"& taxonomy$Phylum!="unclassified")
+  #counts["7751662AGE_a_G4"] <- unlist(apply(counts[c("7344072AGE1_a_G4","6897722AGE_a_G4","662586SPC_a_G4","7344072AGE1_a_G4","9457743AGE1_a_G4")][,,],1,mean))
+  #ord = match(colnames(counts),rownames(metadata))
+  #metadata = metadata[ord,]
+  #length(colnames(counts));length(union(colnames(counts),rownames(metadata)))
+  #if(length(colnames(counts))!=length(union(colnames(counts),rownames(metadata)))){
+  #  message("**Error: Count-sample's names don't match with Metadata-sample's names!\n\t*Check the files and try again\n")
+  #  quit()
+  #}
+  #dim(counts)
+  #dim(taxonomy)
+  #data <- newMRexperiment(counts,phenoData=AnnotatedDataFrame(metadata),featureData=AnnotatedDataFrame(taxonomy))
+  
+}
+  
+replicas.analysis <- function(data,opath){
+  packages('metagenomeSeq')
+  techrep <- pData(data)$CC[duplicated(metadata$CC)]
+  xyi=c()
+  i=3
+  for (i in 1:length(techrep)){
+    y <- counts.nl[,metadata[metadata$CC==techrep[i],]$ID[1]]
+    x <- counts.nl[,metadata[metadata$CC==techrep[i],]$ID[2]]
+    df <- data.frame(x=x,y=y)
+    df$ratio <- unlist(apply(df,1,function(x){
+      if(is.finite(x[1]/x[2])){if(x[1]/x[2]==0)return(x[2]) else return(x[1]/x[2])
+      }else if(is.nan(x[1]/x[2])){return(1)
+      }else if(is.infinite(x[1]/x[2])) return(x[1])
+    }))
+    #plot(density(df$ratio))
+    corrxy <- cor.test(df$x,df$y)
+    if(corrxy$estimate>0.77){
+      minval <- mean(df$ratio)-sd(df$ratio)
+      maxval <- mean(df$ratio)+sd(df$ratio)
+      df$highlight <- unlist(lapply(df$ratio,function(x) if(x<minval|x>maxval){return("highlight")}else{return("normal")}))
+      dz <- subset(df,df$highlight=="highlight")
+      z <- abs(dz$x-dz$y) # how far is one value to another.
+      #xyintercept <- quantile(z,probs=0.98)
+      xyintercept <- max(z)
+      xyi <- c(xyi,xyintercept)
+      print(c(i,corrxy$estimate,xyintercept))
+      mycolours <- c("highlight" = "red", "normal" = "grey")
+      ggplot(df,aes(x=x,y=y))+geom_point(aes(alpha=1/20))+
+        geom_hline(yintercept=xyintercept,co)+geom_vline(xintercept=xyintercept)+
+        ggtitle(i)+theme(legend.position="none",plot.title=element_text(lineheight=.8, face="bold"))
+      ggsave(filename=paste(opath,i,'_replicates.pdf',sep=''),device="pdf")
+    }
+  }
+  otu.coverage <- round(2^mean(xyi))
+  ## removing replications
+  rep <- metadata[metadata$CC%in%techrep,]
+  samplesToKeep <- rownames(metadata)[!rownames(metadata)%in%rownames(rep[rep$rep=="a",])]
+  data.f1 <- data[,samplesToKeep]
+  return(data.f1)
+}
+
 resetPar <- function() {
   dev.new()
   op <- par(no.readonly = TRUE)

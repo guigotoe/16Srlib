@@ -35,23 +35,29 @@ get_script_path <- function() {
 }
 script.basename <- dirname(get_script_path())
 toolbox <- paste(sep="/", script.basename, "toolbox.R")
-#toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
-toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
+toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
+#toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
-#p <- '/home/torres/ikmb_storage/projects/16Srlib_test/'
-p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
+p <- '/home/torres/ikmb_storage/Mangrove/16Sfa/08_2017_results/2017/'
+#p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 packages(c("metagenomeSeq","vegan","ggplot2","RColorBrewer","RAM","PoiClaClu","zCompositions","reshape2"))
 
 ###### end ######
 
 #* input *
 
-f <- paste(p,'age/dataF.rds',sep='')#commandArgs()[6] # paste(p,'results/dataF.rds',sep='') #
-vs <- 'group,Gender'#commandArgs()[7]# 'Salinity,Textura' #
+f <- paste(p,'dataFcp_l_0.1.rds',sep='')#commandArgs()[6] # paste(p,'results/dataF.rds',sep='') #
+vs <- 'Sample' #'group,Gender'#commandArgs()[7]#
 vs <- unlist(strsplit(vs,','))
-o <- paste(p,'age/',sep='')#commandArgs()[8] # paste(p,'results/',sep='') #
+extravar <- 'ID_ref'
+o <- paste(p,'alpha/',sep='')#commandArgs()[8] # paste(p,'results/',sep='') #
+##
+if(dir.exists(o)){message('Out-folder already exist, files will be overwritten')
+}else dir.create(o,showWarnings=F)
+
 ## ##
 df <- readRDS(f)
+#pData(df)$ID_ref <- factor(pData(df)$ID_ref,levels=c('low','med','high'))
 dfc <- MRcounts(df,norm=T)
 dfc.t <- t(MRcounts(df,norm=T))
 df.n <- newMRexperiment(dfc,phenoData=AnnotatedDataFrame(pData(df)),featureData=AnnotatedDataFrame(fData(df)))
@@ -68,6 +74,7 @@ indexcal$id <- rownames(indexcal)
 index <- merge(pData(df),indexcal,by.x=colnames(pData(df))[1],by.y="id")
 Ren <- renyi(dfc.t)
 rankabund <- radfit(round(dfc.t))
+#index$ID_ref
 
 write.table(index,file=paste(o,"index.txt",sep=''),sep="\t",quote=F,row.names=F)
 write.table(round(Ren,2),file=paste(o,"renyi.txt",sep=''),sep="\t",quote=F,row.names=F)
@@ -78,22 +85,31 @@ sink(NULL)
 ## ** PLOTS ** ##
 message("Ploting...")
 
-pdf(paste(o,"renyi_plot.pdf",sep=''),width=8, height=5)
+pdf(paste(o,"renyi_plot.pdf",sep=''),width=8, height=5,onefile=FALSE)
 plot(Ren,main="Renyi diversities")
 dev.off()
 
-pdf(paste(o,"rankabund_plot.pdf",sep=''),width=8, height=5)
+pdf(paste(o,"rankabund_plot.pdf",sep=''),width=8, height=5,onefile=FALSE)
 plot(rankabund,main="Ranked abundance distribution models",pch=20)
 dev.off()
 
-colourCount =NROW(index)
-base <- colorRampPalette(brewer.pal(8, "Set1"))(9)[1:3]
-if (colourCount <= 9) {palette <- base
-}else palette <- c(base,RAM.pal(cols.needed=(colourCount))[-c(1)])
-#pie(rep(1,38), col=palette)
-pdf(paste(o,"rarefaction_curve.pdf",sep=''),width=8, height=5)
-rare <- rarecurve(round(dfc.t), step = 100,col=palette,lwd=3,label=F,ylab="OTUs",xlab="Reads sampled",main="Rarefaction curve")
-legend(x=5, y=4,rownames(dfc.t), pch=21,col="#777777", pt.bg=palette,pt.cex=2,cex=.8,bty="n",ncol=9,xjust=0,x.intersp=1,text.width=1515)
+#colourCount =NROW(index)
+#base <- colorRampPalette(brewer.pal(8, "Set1"))(9)
+#if (colourCount <= 9) {palette <- base
+#}else palette <- c(base,RAM.pal(cols.needed=(colourCount))[-c(1)])
+if (length(levels(index[[extravar]]))>9){ l <- length(levels(index[[extravar]]))
+}else l <- 9
+sampleColors= colorRampPalette(brewer.pal(8, "Set1"))(l)[c(1:length(levels(index[[extravar]])))]
+sample_colors_dframe = data.frame(samples=levels(index[[extravar]]), colors=sampleColors)
+sample_colors = unlist(lapply(index[[extravar]], function(x) return(as.character(sample_colors_dframe[x,2]))))
+#pie(rep(1,10), col=sample_colors)
+
+raredata <- round(dfc.t)
+rownames(raredata) <- index[match(as.numeric(rownames(raredata)),index$ID),3]
+pdf(paste(o,"rarefaction_curve.pdf",sep=''),width=8, height=5,onefile=FALSE)
+rare <- rarecurve(raredata, step = 100,col=sample_colors,lwd=3,label=F,ylab="OTUs",xlab="Reads sampled",main="Rarefaction curve")
+legend("bottomright",rownames(raredata), pch=21,col="#777777",pt.bg=sample_colors,
+       pt.cex=1.2,cex=.8,bty="n",ncol=10,xjust=1,x.intersp=0.5,y.intersp=1)#,text.width=1200)
 dev.off()
 
 for (v in vs){
@@ -128,17 +144,15 @@ for (v in vs){
 ## OTU abundance analysis ##
 # Compositional Data - proportions
 
-  taxprop(dfp,v,'Phylum',o)
-  taxprop(dfp,v,'Class',o)
-  taxprop(dfp,v,'Order',o)
-  taxprop(dfp,v,'Order',o,u=T)
-  taxprop(dfp,v,'Family',o)
-  taxprop(dfp,v,'Family',o,u=T)
-  taxprop(dfp,v,'Genus',o)
-  taxprop(dfp,v,'Genus',o,u=T)
+  taxprop(dfp,v,'Phylum',o,u=F,z=F)
+  taxprop(dfp,v,'Class',o,u=F,z=F)
+  taxprop(dfp,v,'Class',o,u=F)
+  taxprop(dfp,v,'Order',o,u=F)
+  taxprop(dfp,v,'Family',o,u=F)
+  taxprop(dfp,v,'Genus',o,u=F)
   cl=factor(pData(df.n)[[v]])
   colrs <- colorRampPalette(brewer.pal(8, "Set1"))(9)[as.integer(factor(cl))]
-  pdf(paste(o,"MDS_",v,".pdf",sep=''),width=8, height=5)
+  pdf(paste(o,"MDS_",v,".pdf",sep=''),width=8, height=5,onefile=FALSE)
   plotOrd(df.n,tran=T,usePCA=F,useDist=T,bg=colrs,pch=21)
   legend("bottomleft",levels(cl),box.col=NA,text.col=colorRampPalette(brewer.pal(8, "Set1"))(9),
          title=v,title.col='black')
@@ -149,12 +163,13 @@ for (v in vs){
 # replicates correlation ##
 # calculate the pearson correlation between samples in order to see replication issues.
 
+#colnames(dfc) <- index[match(colnames(dfc),index$ID),3]
 eucldist <- dist(t(dfc))
-dismatplot(eucldist,pData(df)[[v]],"Euclidian distance matrix",o)
+dismatplot(eucldist,pData(df)[[extravar]],"Euclidian distance matrix",o)
 poisd <- PoissonDistance(t(dfc))
-dismatplot(poisd$dd,pData(df)[[v]],"Pearson correlation matrix",o)
+dismatplot(poisd$dd,pData(df)[[extravar]],"Pearson correlation matrix",o)
 brayCurtis <- vegdist(t(dfc))
-dismatplot(brayCurtis,pData(df)[[v]],"Bray-Curtis dissimilarity matrix",o)
+dismatplot(brayCurtis,pData(df)[[extravar]],"Bray-Curtis dissimilarity matrix",o)
 
 ###
 source(toolbox)
