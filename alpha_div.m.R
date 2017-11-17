@@ -103,24 +103,31 @@ sampleColors= colorRampPalette(brewer.pal(8, "Set1"))(l)[c(1:length(levels(index
 sample_colors_dframe = data.frame(samples=levels(index[[extravar]]), colors=sampleColors)
 sample_colors = unlist(lapply(index[[extravar]], function(x) return(as.character(sample_colors_dframe[x,2]))))
 #pie(rep(1,10), col=sample_colors)
-
 raredata <- round(dfc.t)
-rownames(raredata) <- index[match(as.numeric(rownames(raredata)),index$ID),3]
-pdf(paste(o,"rarefaction_curve.pdf",sep=''),width=8, height=5,onefile=FALSE)
-rare <- rarecurve(raredata, step = 100,col=sample_colors,lwd=3,label=F,ylab="OTUs",xlab="Reads sampled",main="Rarefaction curve")
-legend("bottomright",rownames(raredata), pch=21,col="#777777",pt.bg=sample_colors,
-       pt.cex=1.2,cex=.8,bty="n",ncol=10,xjust=1,x.intersp=0.5,y.intersp=1)#,text.width=1200)
+names_raredata <- data.frame(rowids=rownames(raredata),ref=index[match(as.character(index[[1]]),rownames(raredata))][[extravar]])
+names_raredata <- names_raredata[with(names_raredata, order(ref)),]
+raredata <- raredata[names_raredata$rowids,]
+pdf(paste(o,"rarefaction_curve.pdf",sep=''),width=8, height=6,onefile=FALSE)
+rare <- rarecurve(raredata,step = 100,col=sample_colors,lwd=3,label=F,ylab="Observed OTU",xlab="Reads sampled",main="Rarefaction curve")
+#as.character(names_raredata$ref)
+legend("bottomright",as.character(sample_colors_dframe$samples), pch=21,col="#777777",pt.bg=as.character(sample_colors_dframe$colors),pt.cex=1.2,cex=.8,bty="n",ncol=10,xjust=1,x.intersp=0.5,y.intersp=1)#,text.width=1200)
 dev.off()
 
 for (v in vs){
   shplot <- ggplot(index,aes(x=factor(index[[v]]),y=shannon)) + 
-    geom_boxplot(aes(fill=factor(index[[v]]))) + geom_jitter(position=position_jitter(width=0.3))+
+    geom_boxplot(aes(fill=factor(index[[v]])),width=0.9) +# geom_jitter(position=position_jitter(width=0.3))+
     ggtitle(paste("Alpha diversity - Shannon index",sep=""))+ylab("Alpha diversity (Shannon entropy)")+
-    xlab(v)+scale_fill_discrete(guide=FALSE)+
-    theme(axis.text.x  = element_text(angle=0, vjust=0.5, size=12),
+    scale_fill_manual(values=as.character(sample_colors_dframe$colors),guide=FALSE)+
+    scale_x_discrete(expand=c(0,0.5))+
+    theme(axis.text.x  = element_text(angle=0, vjust=0.5, size=20),
+          axis.text.y  = element_text(size=20),
+          axis.title.y=element_text(size=20,face="bold"),
+          axis.title.x=element_blank(),
           panel.grid.minor=element_blank(),panel.grid.major=element_blank(),
-          plot.title = element_text(lineheight=.12, face="bold"))
-  ggsave(paste('shannon_',v,'.pdf'),plot=shplot,path=o,width=8,height=5,device="pdf")
+          plot.title = element_blank(),#element_text(lineheight=.12, face="bold"),
+          plot.background= element_blank()
+    )
+  ggsave(paste('shannon_',v,'.pdf'),plot=shplot,path=o,width=8,height=6,device="pdf")
   
   simplot <- ggplot(index,aes(x=factor(index[[v]]),y=simpson)) + 
     geom_boxplot(aes(fill=factor(index[[v]]))) + geom_jitter(position=position_jitter(width=0.3))+
@@ -143,13 +150,11 @@ for (v in vs){
 
 ## OTU abundance analysis ##
 # Compositional Data - proportions
-
-  taxprop(dfp,v,'Phylum',o,u=F,z=F)
-  taxprop(dfp,v,'Class',o,u=F,z=F)
-  taxprop(dfp,v,'Class',o,u=F)
-  taxprop(dfp,v,'Order',o,u=F)
-  taxprop(dfp,v,'Family',o,u=F)
-  taxprop(dfp,v,'Genus',o,u=F)
+  tphylum <- taxprop(dfp,v,'Phylum',o,u=F,z=F,limit=10,legendncol=4,textsize=10)
+  tclass <- taxprop(dfp,v,'Class',o,u=F,z=F,legendncol=3,textsize=10)
+  torder <- taxprop(dfp,v,'Order',o,u=F,z=F,legendncol=3,textsize=10)
+  tfamily <- taxprop(dfp,v,'Family',o,u=F,z=F,legendncol=3,textsize=8)
+  tgenus <- taxprop(dfp,v,'Genus',o,u=F,z=F,legendncol=3,textsize=7)
   cl=factor(pData(df.n)[[v]])
   colrs <- colorRampPalette(brewer.pal(8, "Set1"))(9)[as.integer(factor(cl))]
   pdf(paste(o,"MDS_",v,".pdf",sep=''),width=8, height=5,onefile=FALSE)
@@ -158,6 +163,69 @@ for (v in vs){
          title=v,title.col='black')
   dev.off()
 }
+min(as.numeric(tphylum[tphylum$OTU=='Planctomycetes',1:(ncol(tphylum)-2)]))*100
+max(as.numeric(tphylum[tphylum$OTU=='Planctomycetes',1:(ncol(tphylum)-2)]))*100
+
+### Phylum T-test actinobacteria med vs low and med vs high and low vs high (no sig)
+otu <- 'Actinobacteria'
+t.test(as.numeric(tphylum[tphylum$OTU==otu,c('2A','2B','2C')]),as.numeric(tphylum[tphylum$OTU==otu,c('3A','3B','3C')]))
+t.test(as.numeric(tphylum[tphylum$OTU==otu,c('2A','2B','2C')]),as.numeric(tphylum[tphylum$OTU==otu,c('4A','4B','4C')]))
+t.test(as.numeric(tphylum[tphylum$OTU==otu,c('3A','3B','3C')]),as.numeric(tphylum[tphylum$OTU==otu,c('4A','4B','4C')]))
+### Phylum T-test Bacteroidetes med vs low (sig) and med vs high (X) and low vs high (sig)
+otu <- 'Bacteroidetes'
+t.test(as.numeric(tphylum[tphylum$OTU==otu,c('2A','2B','2C')]),as.numeric(tphylum[tphylum$OTU==otu,c('3A','3B','3C')]))
+t.test(as.numeric(tphylum[tphylum$OTU==otu,c('2A','2B','2C')]),as.numeric(tphylum[tphylum$OTU==otu,c('4A','4B','4C')]))
+t.test(as.numeric(tphylum[tphylum$OTU==otu,c('3A','3B','3C')]),as.numeric(tphylum[tphylum$OTU==otu,c('4A','4B','4C')]))
+### Phylum T-test Planctomycetes med vs low (sig) and med vs high (sig) and low vs high (sig)
+otu <- 'Planctomycetes'
+t.test(as.numeric(tphylum[tphylum$OTU==otu,c('2A','2B','2C')]),as.numeric(tphylum[tphylum$OTU==otu,c('3A','3B','3C')]))
+t.test(as.numeric(tphylum[tphylum$OTU==otu,c('2A','2B','2C')]),as.numeric(tphylum[tphylum$OTU==otu,c('4A','4B','4C')]))
+t.test(as.numeric(tphylum[tphylum$OTU==otu,c('3A','3B','3C')]),as.numeric(tphylum[tphylum$OTU==otu,c('4A','4B','4C')]))
+### Phylum T-test Gemmatimonadetes med vs low (x) and med vs high (sig) and low vs high (sig)
+otu <- 'Gemmatimonadetes'
+t.test(as.numeric(tphylum[tphylum$OTU==otu,c('2A','2B','2C')]),as.numeric(tphylum[tphylum$OTU==otu,c('3A','3B','3C')]))
+t.test(as.numeric(tphylum[tphylum$OTU==otu,c('2A','2B','2C')]),as.numeric(tphylum[tphylum$OTU==otu,c('4A','4B','4C')]))
+t.test(as.numeric(tphylum[tphylum$OTU==otu,c('3A','3B','3C')]),as.numeric(tphylum[tphylum$OTU==otu,c('4A','4B','4C')]))
+
+### class ###
+
+mean(as.numeric(tclass[tclass$OTU=='Alphaproteobacteria',c('3A','3B','3C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Alphaproteobacteria',c('2A','2B','2C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Alphaproteobacteria',c('4A','4B','4C')]))*100
+
+mean(as.numeric(tclass[tclass$OTU=='Gammaproteobacteria',c('3A','3B','3C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Gammaproteobacteria',c('2A','2B','2C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Gammaproteobacteria',c('4A','4B','4C')]))*100
+
+mean(as.numeric(tclass[tclass$OTU=='Deltaproteobacteria',c('3A','3B','3C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Deltaproteobacteria',c('2A','2B','2C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Deltaproteobacteria',c('4A','4B','4C')]))*100
+
+mean(as.numeric(tclass[tclass$OTU=='Gemmatimonadetes',c('3A','3B','3C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Gemmatimonadetes',c('2A','2B','2C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Gemmatimonadetes',c('4A','4B','4C')]))*100
+
+mean(as.numeric(tclass[tclass$OTU=='Phycisphaerae',c('3A','3B','3C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Phycisphaerae',c('2A','2B','2C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Phycisphaerae',c('4A','4B','4C')]))*100
+
+mean(as.numeric(tclass[tclass$OTU=='Nitrospira',c('3A','3B','3C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Nitrospira',c('2A','2B','2C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Nitrospira',c('4A','4B','4C')]))*100
+
+mean(as.numeric(tclass[tclass$OTU=='S085',c('3A','3B','3C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='S085',c('2A','2B','2C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='S085',c('4A','4B','4C')]))*100
+
+mean(as.numeric(tclass[tclass$OTU=='Acidimicrobiia',c('3A','3B','3C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Acidimicrobiia',c('2A','2B','2C')]))*100
+mean(as.numeric(tclass[tclass$OTU=='Acidimicrobiia',c('4A','4B','4C')]))*100
+
+### order##
+
+mean(as.numeric(torder[torder$OTU=='Acidimicrobiales',c('3A','3B','3C')]))*100
+mean(as.numeric(torder[torder$OTU=='Acidimicrobiales',c('2A','2B','2C')]))*100
+mean(as.numeric(torder[torder$OTU=='Acidimicrobiales',c('4A','4B','4C')]))*100
 
 ### Structural analysis ##
 # replicates correlation ##

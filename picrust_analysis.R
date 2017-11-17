@@ -81,13 +81,24 @@ if(dir.exists(picrust_outpath)){message('picrustOut folder already exist, files 
 }else dir.create(picrust_outpath,showWarnings=F)
 
 ###### end ######
-packages(c('biomformat','ggplot2','dendextend','stringdist'))
+packages(c('biomformat','ggplot2','dplyr','dendextend','stringdist'))
 ggdata <- mothur.biom(opt$input,opt$metadata)
+pData(ggdata) <- pData(ggdata)[,colSums(is.na(pData(ggdata)))==0] ## remove coluns with NAs
+pData(ggdata)$ID_ref <- factor(as.character(pData(ggdata)$ID_ref),levels=c('low','med','high'))
 p.f <- cumNormStatFast(ggdata) # Calculates the percentile for which to sum counts up to and scale by.
 ggdata <- cumNorm(ggdata,p=p.f)  # Calculates each column's quantile and calculates the sum up to and including p quantile
 nf.f <- normFactors(ggdata)
 head(fData(ggdata))
 ## data ##
+tpdata <- as.data.frame(t(pData(ggdata)))
+tpdata$header <- as.character(rownames(tpdata))
+tpdata <- tpdata[,c(ncol(tpdata),1:(ncol(tpdata)-1))]
+ko2lfse <- read.table(paste(ra,'ko_predicted_metagenomes2LEfSe.txt',sep=''),header=F,sep="\t",quote="")
+ko2lfse <- ko2lfse[,1:(ncol(ko2lfse)-1)]
+colnames(ko2lfse) <- colnames(tpdata)
+ko2lfse <- rbind(tpdata[c('Punto','ID_ref','Fe','Arena','Salinity'),],ko2lfse)
+ko2lfse[1:10,1:10]
+write.table(ko2lfse,paste(ra,'ko_predicted_metagenomes2LEfSe_ready.txt',sep=''),quote=F,sep="\t",row.names=F,col.names=F)
 
 diff_genus <- read.table(opt$diff,header=T,sep="\t",quote="")$'Genus'
 df_cont <- read.table(opt$contribution,header=T,sep="\t",quote="")
@@ -96,7 +107,6 @@ head(df_cont)
 length(levels(df_cont$Genus))
 k <- df_cont[grep(as.character(diff_genus[4]),df_cont$Genus),]
 k <- k[with(k,order(-ContributionPercentOfAllSamples)),]
-
 
 #dendjw <- stringdistmatrix(strsplit(as.character(diff_genus[4]),'_')[[1]][1],df_cont$Genus,method='jw',useNames='strings')
 #dendjw[1,c(151,162)]

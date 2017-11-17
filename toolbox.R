@@ -263,7 +263,8 @@ taxon.level <- function(df,tlevel,pmin=63){
   return(names(taxorder))
 }
 #tl <- 'Order'
-taxprop <- function(dfp,v,tl,o,limit=0.40,u=T,z=T,stack=F){
+
+taxprop <- function(dfp,v,tl,o,limit=15,u=T,z=T,stack=F,legendncol=NA,textsize=NA){
   ## input: 1) MRexperiment (proportions,features,metadata) 2) reference variable: x axis 3) taxlevel 4) output path
   ## u=F -> with unclisified -> z=F -> with othersas.numeric(df.t[i,])>=quantile(as.numeric(df.t[i,]), probs=0.9)
   ## limit 0.4 -> selection of Taxa which comprises 40% of the proportion at each sample.
@@ -271,28 +272,59 @@ taxprop <- function(dfp,v,tl,o,limit=0.40,u=T,z=T,stack=F){
   #dfxta <- as.data.frame(sapply(unique(names(dfxt)[duplicated(names(dfxt))]), function(x) Reduce("+", dfxt[ , grep(x, names(dfxt))])))
   packages(c("matrixStats","RAM"))
   #tl="Phylum"
+  title <- paste(tl," abundance distribution",sep='')
   if (!"ID"%in%colnames(pData(dfp)))pData(dfp)$ID <- pData(dfp)[,1]
   df <- aggTax(dfp,lvl=tl)
   df.t<- as.data.frame(t(MRcounts(df)))
+  ##########################################
+  ## * Selecting x (limit) OTUs to plot *##
   OTUsToKeep <- c()
-  for (i in 1:nrow(df.t)){
-    pa <- data.frame(ID=colnames(df.t[i,]),freq=as.numeric(df.t[i,]))
+  byfile_OTUabundances <- data.frame(OTU=colnames(df.t)) ## To export later all the abundances according files
+  for (i in 1:nrow(df.t)){ 
+    ## Keeps OTUs according limit -- so if limit is >1 represent the maximum number of OTUs to plot (most abundant)
+    ## if limit <1 then will keep OTUs based on the abundance proportion. By default limit = 15 
+    pa <- data.frame(OTU=colnames(df.t[i,]),freq=as.numeric(df.t[i,]))
     pa <- pa[with(pa,order(-freq)),]
     pa$Fcum <- cumsum(pa$freq)
     rownames(pa) <- 1:nrow(pa)
-    palim <- pa[pa$Fcum<=limit,]
-    if(any(as.character(pa$ID) == 'Bacteria_unclassified')) pa <- pa[-which(pa$ID=='Bacteria_unclassified'),]
-    if(nrow(palim)<=10) palim <- pa[1:10,] # for phylum mainly but if doesnt work for others
-    OTUsToKeep <- c(OTUsToKeep,as.character(palim$ID))
+    byfile_OTUabundances[[rownames(df.t)[i]]] <- pa[match(byfile_OTUabundances$OTU, pa$OTU),]$freq
+    if(!u){
+      if(any(as.character(pa$OTU) == 'Bacteria_unclassified')) pa <- pa[-which(pa$OTU=='Bacteria_unclassified'),]
+    }
+    if (limit > 1){palim <- pa[1:limit,]
+    }else {palim <- pa[pa$Fcum<=limit,]; if(nrow(palim)<=10) palim <- pa[1:10,]} # for phylum mainly but if doesnt work for others
+    OTUsToKeep <- c(OTUsToKeep,as.character(palim$OTU))
   }
   OTUsToKeep <- unique(OTUsToKeep)
+  ## However the prev. step we will end with more OTUs that expected. We should stick to our LIMIT then:
+  # We will use the top x (LIMIT) according to the average abundance across samples. 
+  byfile_OTUabundances$rowMean <- rowMeans(byfile_OTUabundances[2:ncol(byfile_OTUabundances)])
+  OTUsToKeep.filter <- byfile_OTUabundances[byfile_OTUabundances$OTU%in%OTUsToKeep,c(1,ncol(byfile_OTUabundances))]
+  OTUsToKeep.filter <- OTUsToKeep.filter[with(OTUsToKeep.filter,order(-rowMean)),]
+  OTUsToKeep <- OTUsToKeep.filter[1:limit,]$OTU
+  #####################################################
+  
   df.tk <- df.t[,which(colnames(df.t)%in%OTUsToKeep)] ## keeping taxon with high proportion according 'limit'
   df.tk$Others <- unlist(apply(df.tk,1,function(x){1-sum(x)}))
-  gm <- cbind(df.tk,pData(dfp)[v],ID=pData(dfp)$ID)
+  
+  ###** Writing df.tk and byfile_OTUabundances:
+  write.table(round(df.tk,2),file=paste(o,gsub(" ",'_',title),'_',v,'_',ncol(df.tk),'OTU.txt',sep=''),sep="\t",quote=F,row.names=F)
+  byfile_OTUabundances_x <- round(byfile_OTUabundances[2:ncol(byfile_OTUabundances)],5)
+  byfile_OTUabundances_x$OTU <- byfile_OTUabundances$OTU
+  byfile_OTUabundances_x <- byfile_OTUabundances_x[with(byfile_OTUabundances_x,order(-rowMean)),]
+  byfile_OTUabundances_x$rMeanCum <- cumsum(byfile_OTUabundances_x$rowMean)
+  write.table(byfile_OTUabundances_x,file=paste(o,gsub(" ",'_',title),'_',v,'.txt',sep=''),sep="\t",quote=F,row.names=F)
+  ###
+  
+  gm <- cbind(df.tk,pData(dfp)[v],ID=pData(dfp)$ID) 
   gm_m <- melt(gm,id.vars=c(v,"ID"))
   colnames(gm_m)[which(colnames(gm_m)=='variable')] <- 'taxa'
-  gmx2 <- aggregate(as.formula(paste("value~",'ID+taxa+',paste(v,collapse="+"))),data=gm_m,FUN=sum) # Because some taxa now are xOthers so we need to summ their values
-  
+  ##################################################################
+  #*** following line is a depreciated process *** not used anymore
+  #Because some taxa now are xOthers so we need to summ their values
+  #gmx2 <- aggregate(as.formula(paste("value~",'ID+taxa+',paste(v,collapse="+"))),data=gm_m,FUN=sum) 
+  ##################################################################
+  gmx2 <- gm_m
   taxorder <- data.frame(taxa=levels(gmx2$taxa),rate=rep(0,length(levels(gmx2$taxa))))
   for (i in levels(gmx2$taxa)){
     a <- sum(unlist(lapply(gmx2$value[gmx2$taxa==i],sum))) # OTU global abundace. max = No. of individuals 
@@ -309,19 +341,14 @@ taxprop <- function(dfp,v,tl,o,limit=0.40,u=T,z=T,stack=F){
   if (colourCount <= 3) {palette <- base
   }else palette <- c(base,RAM.pal(cols.needed=(colourCount-2))[-c(1)])
   
-  title <- paste(tl," abundance distribution",sep='')
-  ### writing gmx2:
-  gmx2df <- dcast(gmx2,as.formula(paste("ID+",v,"~",'taxa')))
-  write.table(gmx2df,file=paste(o,gsub(" ",'_',title),'_',v,'.txt',sep=''),sep="\t",quote=F,row.names=F)
-  ###
   ut <- ''
   ot <- ''
-  if(u==T){gmx2 <- subset(gmx2,gmx2$taxa!='unclassified');ut <- '_Xuncl'}
-  if(z==T){gmx2 <- subset(gmx2,gmx2$taxa!='Others');ot <- '_Xothers'}
+  if(!u){gmx2 <- subset(gmx2,gmx2$taxa!='unclassified');ut <- '_Xuncl'}
+  if(!z){gmx2 <- subset(gmx2,gmx2$taxa!='Others');ot <- '_Xothers'}
   
   #pointsplot <- 
   
-    #geom_point(aes(colour=gmx2$taxa,fill=gmx2$taxa),position=position_jitter(width=0.22),alpha = 0.9)+
+  #geom_point(aes(colour=gmx2$taxa,fill=gmx2$taxa),position=position_jitter(width=0.22),alpha = 0.9)+
   #violinplot <- ggplot(gmx2,aes(x=as.factor(gmx2[[v]]),y=value,fill=taxa))+  
   #  geom_violin(aes(colour=gmx2$taxa,fill=gmx2$taxa))+
   #  geom_point(aes(colour=gmx2$taxa,fill=gmx2$taxa,y=mean(gmx2$value)),color="black", size = 2) + 
@@ -337,25 +364,32 @@ taxprop <- function(dfp,v,tl,o,limit=0.40,u=T,z=T,stack=F){
   #        legend.text = element_text(size=9),
   #        legend.title = element_text(size=10, face="bold"),
   #        plot.title = element_text(lineheight=.12, face="bold"))
-  if(length(levels(gmx2$taxa))<=20){textsize=10;keysize=1}
-  if(length(levels(gmx2$taxa))>20){textsize=8;keysize=0.8}
-  #if(length(levels(gmx2$taxa))>26) {textsize=6.5;keysize=0.7}
-  if(length(levels(gmx2$taxa))>27) {textsize=6;keysize=0.6}
+  if (is.na(textsize)){
+    if(length(levels(gmx2$taxa))<=14){textsize=10;keysize=1}
+    if(length(levels(gmx2$taxa))>14){textsize=8;keysize=0.8}
+    #if(length(levels(gmx2$taxa))>26) {textsize=6.5;keysize=0.7}
+    if(length(levels(gmx2$taxa))>27) {textsize=6;keysize=0.6}
+  }
   
   distplot <- ggplot(gmx2,aes(x=as.factor(gmx2[[v]]),y=value,fill=taxa))+
-    geom_boxplot(lwd=0.3)+#geom_jitter(position=position_jitter(width=.2), size=0.5)+
+    geom_boxplot(lwd=0.2,width=0.75)+#geom_jitter(position=position_jitter(width=.2), size=0.5)+
     scale_fill_manual(name=tl,values=palette) +
-    scale_x_discrete(v)+ylab("Proportion")+
+    scale_x_discrete(v,expand=c(0,0.4))+ylab("Proportion")+
     ggtitle(paste(title,sep=""))+
-    #guides(shape=guide_legend(override.aes = list(size=20)))+
-    theme(axis.text.x  = element_text(angle=0, vjust=0.5, size=12,face="bold"),
+    #guides(shape=guide_legend(override.aes = list(size=20)))+a
+    theme(axis.text.x  = element_text(angle=0, vjust=0.5, size=20,face="bold"),
+          axis.text.y  = element_text(size=20),
+          axis.title.y=element_text(size=20,face="bold"),
+          axis.title.x=element_blank(),
           panel.grid.minor=element_blank(),panel.grid.major=element_blank(),
           legend.position="bottom",legend.box="horizontal",
           legend.text = element_text(size=textsize),
           legend.title = element_text(size=10, face="bold"),
           plot.title = element_text(lineheight=.12, face="bold"),
-          legend.key.size=unit(keysize,'line'))
-  distplot
+          legend.key.size=unit(keysize,'line'),
+          plot.background= element_blank())
+  if(!is.na(legendncol))distplot <- distplot+guides(fill=guide_legend(ncol=legendncol))
+  #distplot
   stackplot <- ggplot(gmx2,aes(x=as.factor(gmx2[[v]]),y=value,fill=taxa))+geom_bar(stat='identity',aes(fill=taxa))+
     scale_fill_manual(name=tl,values=palette) +
     scale_x_discrete(v)+ylab("Proportion")+
@@ -366,9 +400,10 @@ taxprop <- function(dfp,v,tl,o,limit=0.40,u=T,z=T,stack=F){
           legend.text = element_text(size=9),
           legend.title = element_text(size=10, face="bold"),
           plot.title = element_text(lineheight=.12, face="bold"))
+  #stackplot
   if(stack==T) ploting <- stackplot else ploting <- distplot
-  ggsave(paste(gsub(" ",'_',title),ot,ut,'_',v,'.pdf',sep=''),plot=ploting,path=o,width=9,height=6,device="pdf")
-  
+  ggsave(paste(gsub(" ",'_',title),ot,ut,'_',v,'.pdf',sep=''),plot=ploting,path=o,width=8,height=6,device="pdf")
+  return(byfile_OTUabundances_x)
 }
 
 taxonprop <- function(dfp,v,tl,otu,o){
