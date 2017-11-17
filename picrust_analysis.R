@@ -95,7 +95,7 @@ head(df_cont)
 #max(df_cont$ContributionPercentOfSample)
 length(levels(df_cont$Genus))
 k <- df_cont[grep(as.character(diff_genus[4]),df_cont$Genus),]
-k <- k[with(k,order(ContributionPercentOfAllSamples)),]
+k <- k[with(k,order(-ContributionPercentOfAllSamples)),]
 
 
 #dendjw <- stringdistmatrix(strsplit(as.character(diff_genus[4]),'_')[[1]][1],df_cont$Genus,method='jw',useNames='strings')
