@@ -72,9 +72,10 @@ mothur.metadata <- function(metadata){
   return(metadata)
 }
 
-#biomf <- opt$input
+#biomf <- opt$biom
 #metadataf <- opt$metadata
 mothur.biom <- function(biomf,metadataf){
+  ## biom = path, metadata = path
   packages(c("biomformat","metagenomeSeq"))
   biom_file <- read_biom(biomf)
   bdata <- biom2MRexperiment(biom_file)
@@ -97,7 +98,7 @@ mothur.biom <- function(biomf,metadataf){
   #taxdf$OTU <- paste('GG_OTU',1:nrow(taxdf),sep='')
   #rownames(counts) <- taxdf$OTU
   #rownames(taxdf) <- taxdf$OTU
-  data.mr <- newMRexperiment(counts[,1:(ncol(counts)-1)],phenoData=AnnotatedDataFrame(mdata),featureData=AnnotatedDataFrame(taxdf[,1:7]))#
+  data.mr <- newMRexperiment(counts[,1:(ncol(counts)-1)],phenoData=AnnotatedDataFrame(mdata),featureData=AnnotatedDataFrame(taxdf[,c(8,1:7)]))#
   #data.mr <- newMRexperiment(MRcounts(bdata),phenoData=AnnotatedDataFrame(mdata),featureData=AnnotatedDataFrame(fData(bdata)))
   return(data.mr)
 }
@@ -262,7 +263,7 @@ taxon.level <- function(df,tlevel,pmin=63){
   taxorder <- sort(taxorder,decreasing=T)
   return(names(taxorder))
 }
-#tl <- 'Order'
+#tl <- 'Phylum'
 
 taxprop <- function(dfp,v,tl,o,limit=15,u=T,z=T,stack=F,legendncol=NA,textsize=NA){
   ## input: 1) MRexperiment (proportions,features,metadata) 2) reference variable: x axis 3) taxlevel 4) output path
@@ -956,6 +957,127 @@ twographs <- function(){
           panel.background=element_blank(),
           panel.grid.major.x = element_line(size = 1,color='grey'))
   
+}
+
+#variable <- 'Salinity'#opt$variable
+#conf <- c('Arena','Fe')#opt$conf
+#pval <- 0.5 # opt$pval
+#out <- paste(ra,'humann2/predicted_results/',sep='') #opt$out
+#level <- 'modulesXMP' #opt$level
+#level <- levelm
+#df <- dfk
+fitzigdiff <- function(df,variable,conf,pval,out,level){
+
+  ## Differential abbundance test - including counfounders ###
+  ## FitZig Method
+  p.f <- cumNormStat(df,pFlag=TRUE,main="Data") # Calculates the percentile for which to sum counts up to and scale by.
+  df <- cumNorm(df,p=p.f)
+  try(cfs <- unlist(sapply(conf,function(x) return(paste('pData(df)$',x,sep='')))))# Confounders
+  
+  nf <- normFactors(df)  # Calculates each column's quantile and calculates the sum up to and including p quantile
+  normFactor <- normFactors(df)#
+  if (length(conf)==1 & conf==''){
+    mod <- model.matrix(as.formula(paste("~",paste('0+factor(pData(df)[["',variable,'"]])+',sep=''),'normFactor')))
+  }else{
+    mod <- model.matrix(as.formula(paste("~",paste('0+factor(pData(df)[["',variable,'"]])+',sep=''),
+                                         paste(cfs,collapse='+'),'+normFactor')))
+  }
+  mod <- model.matrix(as.formula(paste("~",paste('0+factor(pData(df)[["',variable,'"]])+',sep=''),
+                                       paste(cfs,collapse='+'))))
+  settings <- zigControl(maxit=10,verbose=T)
+  fit <- NULL
+  try(fit <- fitZig(obj=df,mod=mod,control=settings,useMixedModel=T,useCSSoffset=T))
+  if(length(fit)==0){
+    fit <- fitZig(obj=df,mod=mod,control=settings,useMixedModel=F)
+  }
+  #summary(calculateEffectiveSamples(fit))
+  zigFit <- fit$fit
+  finalMod <- fit$fit$design
+  x <- unlist(lapply(colnames(finalMod),function(x) return(gsub(paste('factor(pData(df)[["',variable,'"]])',sep=''),variable,x,fixed=T))))
+  colnames(finalMod) <- x
+  x <- unlist(lapply(colnames(finalMod),function(x) return(gsub('pData(df)$','',x,fixed=T))))
+  colnames(finalMod) <- x
+  colnames(zigFit$coefficients) <- colnames(finalMod)
+  colnames(zigFit$stdev.unscaled) <- colnames(finalMod)
+  colnames(zigFit$cov.coefficients) <- colnames(finalMod)
+  colnames(zigFit$design) <- colnames(finalMod)
+  k <- levels(factor(pData(df)[[variable]]))  # states of the variable in study
+  k <- unlist(sapply(k,function(x) return(paste(variable,x,sep=''))))
+  mk <- combn(k,2)
+  contrast_list <- c()
+  for (i in 1:dim(mk)[2]){contrast_list <- c(contrast_list,paste(mk[1,i],mk[2,i],sep='-'))}
+  contrast.matrix <- makeContrasts(contrasts=contrast_list,levels=finalMod)
+  fit2 <- contrasts.fit(zigFit,contrast.matrix)
+  fit2=eBayes(fit2)
+  results <- decideTests(fit2,method="separate",adjust.method="fdr",p.value=pval)#,lfc=0.01) ## 1/0/-1 result DEtable 
+  DElist <- c()
+  for (i in 1:length(colnames(fit2$coef))){
+    lm <- rownames(subset(results,results[,i]!=0))
+    if (length(lm)>0){
+      message (colnames(fit2$coef)[i]," count talbes generation...")
+      texp <- topTable(fit2,coef=i,number=NROW(fit2$coefficients),p.value=pval,adjust="BH")
+      if (nrow(texp)>0){
+        texp$DE <- results[rownames(results)%in%rownames(texp),i]
+        #texp <- cbind(texp,fData(df)[rownames(texp),-c(1,2)])
+        try(texp <- cbind(texp,fData(df)[rownames(texp),2]))
+        ipath <- data.frame(pathway=rownames(texp),colors=ifelse(texp$DE==1,'#FF0000','#0000FF'),width='W2')
+        write.table(ipath,file=paste(out,level,'vs',colnames(fit2$coef)[i],'_conf_',paste(conf,collapse='_'),'_fitZig_ipath.txt',sep=''),
+                    quote=F,sep="\t",na="NA",row.names=F)
+        write.table(texp,file=paste(out,level,'vs',colnames(fit2$coef)[i],'_conf_',paste(conf,collapse='_'),'_fitZig.txt',sep=''),
+                    quote=F,sep="\t",na="NA",row.names=T)
+        DElist <- c(DElist,rownames(texp))
+      }
+    }else{
+      message(paste(colnames(fit2$coef)[i],' has no significant elements at ',pval,' threshold'))
+      #texp <- topTable(fit2,coef=i,number=NROW(fit2$coefficients),p.value=opt$pval,adjust="BH")
+      #write.table(texp,file=paste(opt$out,opt$level,'vs',colnames(fit2$coef)[i],'_conf_',paste(opt$conf,collapse='_'),'_fitZig.txt',sep=''),
+      #            quote=F,sep="\t",na="NA",row.names=T)
+    }
+  }
+  DElist.1 <- unique(DElist)
+  f <- which(rownames(MRcounts(df))%in%DElist.1)
+  dfc <- df[f,1:length(sampleNames(df))]
+  dfexport_counts <- setNames(data.frame(round(MRcounts(dfc,norm=T),2)),colnames(MRcounts(dfc)))
+  write.table(dfexport_counts,file=paste(out,level,'DifAbund_conf_',paste(opt$conf,collapse='_'),'_Counts.txt',sep=''),
+                          quote=F,sep="\t",na="NA",row.names=T)
+  #try(dfexport_alltax <- fData(df)[rownames(dfexport_counts),2,drop=F])
+  #if(level=='OTU'){
+  #  dfexport_alltax <- lapply(rownames(dfexport_counts),function(x){
+  #    fData(df.r)[fData(df.r)['OTU']==x,][1,3:8]
+  #  })
+  #}else{
+  #  dfexport_alltax <- lapply(rownames(dfexport_counts),function(x){
+  #    fData(df.r)[fData(df.r)[opt$level]==x,][1,3:which(colnames(fData(df.r))==opt$level)]
+  #  })
+  #}
+#  
+  #dfexport_alltax.df <- do.call(rbind.data.frame,dfexport_alltax)
+  #dfexport <- cbind(dfexport_counts,dfexport_alltax)
+  #write.table(dfexport,file=paste(out,level,'DifAbund_conf_',paste(opt$conf,collapse='_'),'_CountsTaxonomy.txt',sep=''),
+  #            quote=F,sep="\t",na="NA",row.names=T)
+  
+  #### Cluster analysis
+  ##source(toolbox)
+  #if(nrow(MRcounts(dfc))>0){
+  #  if(!is.na(refvar)) {design <- setNames(data.frame(rownames(pData(dfc)),as.factor(pData(dfc)[,refvar])),c('ID',opt$variable))
+  #  }else design <- setNames(data.frame(rownames(pData(dfc)),as.factor(pData(dfc)[,opt$variable])),c('ID',opt$variable))
+  #  design <- design[with(design,order(design[,2])),]
+  #  rownames(design) <- design$ID
+  #  getClusters( MRcounts(dfc,norm=T), MRcounts(dfc,norm=T,log=T),
+  #               design=design,method=opt$clmethod,path=opt$out,
+  #               prefix=paste(opt$level,'Sign_conf_',paste(opt$conf,collapse='_'),'_',sep=""),val=opt$clval,
+  #               cellwidth=20,cellheight=8.3,text_size=8.7,height=13,width=7)
+  #}
+  ### ploting all genders..
+  ##if(!is.na(refvar)) {design <- setNames(data.frame(rownames(pData(dfc)),as.factor(pData(dfc)[,refvar])),c('ID',opt$variable))
+  ##}else design <- setNames(data.frame(rownames(pData(dfc)),as.factor(pData(dfc)[,opt$variable])),c('ID',opt$variable))
+  ##design <- design[with(design,order(design[,2])),]
+  ##rownames(design) <- design$ID
+  ##getClusters(MRcounts(df,norm=T), MRcounts(df,norm=T,log=T),
+  ##             design=design,method=opt$clmethod,path=opt$out,prefix=paste(opt$level,'All_',sep=""),val=50)
+#  
+  #} 
+
 }
 
 

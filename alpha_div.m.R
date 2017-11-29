@@ -38,15 +38,14 @@ toolbox <- paste(sep="/", script.basename, "toolbox.R")
 toolbox <- '/home/torres/Documents/Projects/Metagenome/r_scripts/16Srlib/toolbox.R'
 #toolbox <- "/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib/toolbox.R"
 source(toolbox)
-p <- '/home/torres/ikmb_storage/Mangrove/16Sfa/08_2017_results/2017/'
+p <- '/home/torres/ikmb_storage/Mangrove/16Sfa/08_2017_results/2016/2017_11_gg2/'
 #p <- '/Users/guillermotorres/Documents/Proyectos/Doctorado/16Srlib_test/'
 packages(c("metagenomeSeq","vegan","ggplot2","RColorBrewer","RAM","PoiClaClu","zCompositions","reshape2"))
-
 ###### end ######
 
 #* input *
 
-f <- paste(p,'dataFcp_l_0.1.rds',sep='')#commandArgs()[6] # paste(p,'results/dataF.rds',sep='') #
+f <- paste(p,'dataFcp_l_0.2.rds',sep='')#commandArgs()[6] # paste(p,'results/dataF.rds',sep='') #
 vs <- 'Sample' #'group,Gender'#commandArgs()[7]#
 vs <- unlist(strsplit(vs,','))
 extravar <- 'ID_ref'
@@ -57,7 +56,7 @@ if(dir.exists(o)){message('Out-folder already exist, files will be overwritten')
 
 ## ##
 df <- readRDS(f)
-#pData(df)$ID_ref <- factor(pData(df)$ID_ref,levels=c('low','med','high'))
+pData(df)$ID_ref <- factor(pData(df)$ID_ref,levels=c('low','med','high'))
 dfc <- MRcounts(df,norm=T)
 dfc.t <- t(MRcounts(df,norm=T))
 df.n <- newMRexperiment(dfc,phenoData=AnnotatedDataFrame(pData(df)),featureData=AnnotatedDataFrame(fData(df)))
@@ -85,13 +84,13 @@ sink(NULL)
 ## ** PLOTS ** ##
 message("Ploting...")
 
-pdf(paste(o,"renyi_plot.pdf",sep=''),width=8, height=5,onefile=FALSE)
-plot(Ren,main="Renyi diversities")
-dev.off()
+#pdf(paste(o,"renyi_plot.pdf",sep=''),width=8, height=5,onefile=FALSE)
+#plot(Ren,main="Renyi diversities")
+#dev.off()
 
-pdf(paste(o,"rankabund_plot.pdf",sep=''),width=8, height=5,onefile=FALSE)
-plot(rankabund,main="Ranked abundance distribution models",pch=20)
-dev.off()
+#pdf(paste(o,"rankabund_plot.pdf",sep=''),width=8, height=5,onefile=FALSE)
+#plot(rankabund,main="Ranked abundance distribution models",pch=20)
+#dev.off()
 
 #colourCount =NROW(index)
 #base <- colorRampPalette(brewer.pal(8, "Set1"))(9)
@@ -112,7 +111,7 @@ rare <- rarecurve(raredata,step = 100,col=sample_colors,lwd=3,label=F,ylab="Obse
 #as.character(names_raredata$ref)
 legend("bottomright",as.character(sample_colors_dframe$samples), pch=21,col="#777777",pt.bg=as.character(sample_colors_dframe$colors),pt.cex=1.2,cex=.8,bty="n",ncol=10,xjust=1,x.intersp=0.5,y.intersp=1)#,text.width=1200)
 dev.off()
-
+v <- 'ID_ref'
 for (v in vs){
   shplot <- ggplot(index,aes(x=factor(index[[v]]),y=shannon)) + 
     geom_boxplot(aes(fill=factor(index[[v]])),width=0.9) +# geom_jitter(position=position_jitter(width=0.3))+

@@ -44,8 +44,8 @@ packages(c("optparse"))
 
 ## Options ##
 
-#p <- '/home/torres/ikmb_storage/Mangrove/16Sfa/08_2017_results/2017/'
-p <- '/Users/guillermotorres/Documents/Proyectos/UAN_Manglares/29_08_ResultsMgv16s_v2/'
+p <- '/home/torres/ikmb_storage/Mangrove/16Sfa/08_2017_results/2016/'#2017_11_gg2/'
+#p <- '/Users/guillermotorres/Documents/Proyectos/UAN_Manglares/29_08_ResultsMgv16s_v2/'
 
 option_list <- list(
   make_option(c("-i","--data"),action="store",type="character",default=paste(p,'dataFcp_l_0.1.rds',sep=''),
@@ -54,10 +54,6 @@ option_list <- list(
               help="Path to output directory [default %default]"),
   make_option(c("-e","--exploratory"),action="store_true",default="NA",
               help="Perform exploratory analysis"),
-  make_option(c("-m","--model"),action="store_true",default="NA",
-              help="Build constrained model based on AIC selection criterion"),
-  make_option(c("-am","--assess_model"),action="store",type="character",default=NA,#NULL,
-              help="Model's terms assessed by permutation tests; for new model: vars,separated,by,comma"),
   make_option(c("-C","--constraints"),action="store",type="character",default=NULL,
               help="Set of constraints used by -coa: vars,separated,by,comma"),
   make_option(c("-coa","--constrained_analysis"),action="store_true",default="NA",
@@ -86,7 +82,7 @@ cate <- pData(data.raw)[, sapply(pData(data.raw), is.factor)] ## categoric expla
 
 #if (!"ID"%in%colnames(pData(data))) pData(data)$ID <- pData(dfp)[,1]
 ## taxonomical level ##
-tl='Genus'
+tl='Class'
 data <- aggTax(data.raw,lvl=tl)
 
 # Data transformations 
@@ -116,15 +112,6 @@ df.rda <- rda(formula(paste(df,'~',paste(sigVars,collapse='+'),sep='')),data=qua
 R2 <- RsquareAdj(df.rda)
 rdasummary <- summary(df.rda)
 
-## writing information of RDA ##
-sink(file=paste(opt$out,"summary_RDA.txt",sep='')) 
-print('Linear model coefficients from explanatory variables:')
-coef(df.rda)
-print('R2 is the percentage of the response variable variation that is explained by a linear model: Calculated and Ezekiel’s adjustment :')
-R2
-rdasummary
-sink(NULL)
-
 ## Variance represented #
 names(rdasummary)
 # Overall variance - corrected by R2
@@ -142,13 +129,33 @@ RDA3cont <- R2$adj.r.squared*rdasummary$concont$importance[2,3]
 expVar_explained <- rdasummary$concont$importance[2,]*R2$adj.r.squared
 names(expVar_explained) <- rownames(rdasummary$biplot)
 
+
+## writing information of RDA ##
+sink(file=paste(opt$out,"summary_RDA.txt",sep='')) 
+print('**Linear model coefficients from explanatory variables:')
+coef(df.rda)
+print('** R2 is the percentage of the response variable variation that is explained by a linear model: Calculated and Ezekiel’s adjustment :')
+R2
+print('unexplained variance: ')
+unconstvar
+print('** The canonical (RDAx) eigenvalues amounts of variance explained by the RDA model from total variance. using Adjusted R2')
+print('RDA1 contribution')
+RDA1cont
+print('RDA2 contribution')
+RDA2cont
+print('RDA2 contribution')
+RDA3cont
+rdasummary
+sink(NULL)
+
+
 ### Permutation test to evaluate our RDA results.
 # Global test first
-anova.cca(df.rda,step=1000)
+modeleval <- anova.cca(df.rda,step=1000)
 # test of all canonical axes
-anova.cca(df.rda,by='axis',step=1000)
-anova.cca(df.rda,by='terms',step=1000)
-anova.cca(df.rda,by='margin',step=1000)
+axiseval <- anova.cca(df.rda,by='axis',step=1000)
+termseval <- anova.cca(df.rda,by='terms',step=1000)
+margineval <- anova.cca(df.rda,by='margin',step=1000)
 
 sink(file=paste(opt$out,"RDA_importantInfo.txt",sep=''))
 paste('Overall variance corrected by R2; partitioned into constrained:',sep='')
@@ -158,11 +165,11 @@ unconstvar
 paste('Contribution of the explanatory variables: ',sep='')
 expVar_explained
 paste('Permutation test. Validating our general model: ',sep='')
-anova.cca(df.rda,step=1000)
+modeleval
 paste('Permutation test. Validating each canonical axes: ',sep='')
-anova.cca(df.rda,by='axis',step=1000)
+axiseval
 paste('Permutation test. Validating each explanatory variables: ',sep='')
-anova.cca(df.rda,by='terms',step=1000)
+margineval
 sink(NULL)
 
 ## wa scores
@@ -170,12 +177,9 @@ sink(NULL)
 # scaling 1: distance biplot: 1) Projecting an object (sample) at right angle on a response variable (species) or a quantitative explanatory variable approximates the position of the object along that variable. 2) The angles between response (species) and explana- tory variables in the biplot reflect their correlations 3) The relationship between the centroid of a qualitative explanatory variable and a response variable (species) is found by projecting the centroid at right angle on the species variable 4) Distances among centroids, and between centroids and individual objects, approximate their Euclidean distances.
 # scaling 2: correlation biplot: 1) Projecting an object (sample) at right angle on a response variable (species) or a quantitative explanatory variable approximates the value of the object along that variable. 2) The angles in the biplot between response and explanatory variables, and between response variables themselves or explana- tory variables themselves, reflect their correlations 3) The relationship between the centroid of a qualitative explanatory variable and a response vari- able (species) is found by projecting the centroid at right angle on the species variable (as for individual objects) 4) Distances among centroids, and between centroids and individual objects, do not approximate their Euclidean distances.
 
-sp.scores <- scores(df.rda,choices=1:2,scaling=1,display='sp')
-site.socres <- scores(df.rda,choices=1:2,scaling=1,display='site')
+packages(c('Rlof',"RColorBrewer","RAM",'directlabels','vegan'))
+
 newnames <- data.frame(oldnames=rownames(MRcounts(data)),newnames=make.cepnames(rownames(MRcounts(data))))
-
-
-packages(c('Rlof',"RColorBrewer","RAM",'directlabels'))
 
 ## colors of the sites ###
 extravar <- 'ID_ref'
@@ -190,6 +194,10 @@ names_data <- data.frame(rowids=colnames(data),ref=index[match(as.character(inde
 names_data <- names_data[with(names_data, order(ref)),]
 names_data$colors <- sample_colors
 ## end colors ###
+
+## Scaling 1 ###
+sp.scores <- vegan::scores(df.rda,choices=c(1:2),scaling=1,display='species')
+site.socres <- vegan::scores(df.rda,choices=1:2,scaling=1,display='site')
 
 ## identify external OTUs using outlier approach
 ## outliers using Local Outlier Factor (LOF) approach##
@@ -225,32 +233,34 @@ arrows(0,0,df.rda.scores[,1],df.rda.scores[,2],length=0,lty=1,col='red')
 plot(df.rda,scaling=1,main='Triplot RDA scaling 1 - wa scores',display=c('sp','wa','cn'),choices=c(1,3))
 
 
-### Scaling 2
+### Scaling 2 ###
+sp.scores2 <- vegan::scores(df.rda,choices=1:2,scaling=2,display='sp')
+site.socres2 <- vegan::scores(df.rda,choices=1:2,scaling=2,display='site')
 ## identify external OTUs using outlier approach
 ## outliers using Local Outlier Factor (LOF) approach##
-l <- round(lof(sp.scores1,nrow(sp.scores)/2),1)
+l <- round(lof(sp.scores2,nrow(sp.scores2)/2),1)
 x <- 1.5
 outliers <- which(l>x)
 cols <- rep("grey",length(l))
 cols[outliers]='red'
 ### end outliers ## 
+#ordiplot(df.rda,scaling=2)
+#ordiplot(df.rda,scaling=1)
 
-sp.scores2 <- scores(df.rda,choices=1:2,scaling=2,display='sp')
-site.socres2 <- scores(df.rda,choices=1:2,scaling=2,display='site')
-
-pdf(paste(opt$out,"RDA_scaling2.pdf",sep=''),width=9, height=9,bg=T,useDingbats=F)
+pdf(paste(opt$out,"RDA_scaling2",'_outliers',x,".pdf",sep=''),width=9, height=9,useDingbats=F)
 #fig <- ordiplot(df.rda,type="none",display=c('sp','sites'),scaling=2,xlim=c(-0.5,0.5),ylim=c(-0.5,0.7))
-fig <- ordiplot(df.rda,type="none",display=c('sp'),scaling=2)
+fig <- ordiplot(df.rda,type="none",display=c('sites','sp','wa'),scaling=2)
 text(df.rda,display='cn',col='blue',scaling=2,axis.bp=T)
 points(fig,"sp",pch=3,col=cols,cex=0.8)
-points(site.socres2,pch=16,cex=0.9,col=names_data$colors[match(rownames(site.socres),names_data$rowids)])
-ordihull(df.rda,groups=names_data$ref[match(rownames(site.socres),names_data$rowids)],display='sites',scaling=2,draw='polygon',label=T,col=sample_colors_dframe$colors)
-orditorp(df.rda,display='sp',select=c(l>x),labels=as.character(newnames$newnames[outliers]),scaling=2,cex=0.8,pch=3,pcol='red',air=0.1,pos=3)
+points(fig,'sites',pch=16,cex=0.9,col=names_data$colors[match(rownames(site.socres2),names_data$rowids)])
+ordihull(df.rda,groups=names_data$ref[match(rownames(site.socres2),names_data$rowids)],display='sites',scaling=2,draw='polygon',label=T,col=sample_colors_dframe$colors)
+try(orditorp(df.rda,display='sp',select=c(l>x),labels=as.character(newnames$newnames[outliers]),scaling=2,cex=0.8,pch=3,pcol='red',air=0.1,pos=3),silent=T)
 #orditorp(df.rda,display='sp',select=c(l>x),labels=rownames(sp.scores)[outliers],scaling=1,cex=0.8,pch=3,pcol='red',air=0.1,pos=3)
 dev.off()
-write.table(newnames[outliers,],paste(opt$out,"RDA_s2_plot_names.txt",sep=''),quote=F,sep="\t",row.names=F)
+write.table(newnames[outliers,],paste(opt$out,"RDA_s2_plot_names",'_outliers',x,".txt",sep=''),quote=F,sep="\t",row.names=F)
 
 
+plot(df.rda,main='Triplot RDA scaling 2 - wa scores',display=c('sp','sites','wa'),scaling=2)
 plot(df.rda,main='Triplot RDA scaling 2 - wa scores',display=c('sp'),scaling=2)
 text(df.rda,display='cn',col='blue',scaling=2,axis.bp=T)
 orditorp(df.rda,display='sp',select=c(l>x),labels=as.character(newnames$newnames[outliers]),scaling=2,cex=0.8,pch=3,pcol='red',air=0.1,pos=3)

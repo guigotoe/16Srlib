@@ -44,8 +44,8 @@ packages(c("metagenomeSeq","optparse"))
 ## Options ##
 #pa = '/home/torres/ikmb_storage/Metagenome/16s/2017/4_2017/'                   # AGING VERSION
 #ra <- '/home/torres/Documents/Projects/Metagenome/2017_results/9_2017/'        # AGING VERSION
-pa <- '/home/torres/ikmb_storage/Mangrove/16Sfa/2016/mothur/'                   # MANGROVE VERSION
-ra <- '/home/torres/ikmb_storage/Mangrove/16Sfa/08_2017_results/2016/'          # MANGROVE VERSION
+pa <- '/home/torres/ikmb_storage/Mangrove/16Sfa/2016/mothur_gg/'                   # MANGROVE VERSION
+ra <- '/home/torres/ikmb_storage/Mangrove/16Sfa/08_2017_results/2016/2017_11_gg2/'          # MANGROVE VERSION
 
 option_list <- list(
   make_option(c("-i","--input"),action="store",type="character",default=paste(pa,'greengenes_result/16s_2016_salinity.biom',sep=''),#'16s.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.shared'
@@ -74,7 +74,8 @@ if(length(grep("/$",opt$out))==0) opt$out <- paste(opt$out,"/",sep="")
 
 picrust_path <- '/home/torres/Bin/picrust-1.1.2/scripts/' # local
 picrust_outpath <- paste(opt$out,'picrust/',sep='')
-human_outpath <- '/home/sukmb347/sukmb347/Mangrove/16Sfa/08_2017_results/2016/human/'# **server version 
+humann_outpath <- paste(opt$out,'humann/',sep='')
+#humann_outpath <- '/home/sukmb347/sukmb347/Mangrove/16Sfa/08_2017_results/2016/humann/'# **server version 
 
 if(dir.exists(picrust_outpath)){message('picrustOut folder already exist, files will be overwritten')
 }else dir.create(picrust_outpath,showWarnings=F)
@@ -110,7 +111,7 @@ KOprediction <- paste('python ',picrust_path,'predict_metagenomes.py -f -i ',pic
                       picrust_outpath,'ko_predicted_metagenomes.txt --with_confidence --normalize_by_function --suppress_subset_loading',sep='')
 system(KOprediction)
 KOprediction_biom <- paste('python ',picrust_path,'predict_metagenomes.py -i ',picrust_outpath,'normalized_otus.biom -o ',
-                      picrust_outpath,'ko_biom_predicted_metagenomes.biom --with_confidence --normalize_by_function --suppress_subset_loading',sep='')
+                      humann_outpath,'ko_predicted_metagenomes.biom --with_confidence --normalize_by_function --suppress_subset_loading',sep='')
 system(KOprediction_biom)
 
 ## COG prediction
